@@ -20,15 +20,12 @@
  *   SOFTWARE.
  *
  */
-
-package com.welie.blessed;
-
-import org.jetbrains.annotations.NotNull;
+package com.welie.blessed
 
 /**
  * This class represents the possible connection states
  */
-public enum ConnectionState {
+enum class ConnectionState(val value: Int) {
     /**
      * The peripheral is disconnected
      */
@@ -49,19 +46,14 @@ public enum ConnectionState {
      */
     DISCONNECTING(3);
 
-    ConnectionState(final int value) {
-        this.value = value;
-    }
-
-    public final int value;
-
-    @NotNull
-    public static ConnectionState fromValue(final int value) {
-        for (ConnectionState type : values()) {
-            if (type.value == value) {
-                return type;
+    companion object {
+        fun fromValue(value: Int): ConnectionState {
+            for (type in values()) {
+                if (type.value == value) {
+                    return type
+                }
             }
+            return DISCONNECTED
         }
-        return DISCONNECTED;
     }
 }

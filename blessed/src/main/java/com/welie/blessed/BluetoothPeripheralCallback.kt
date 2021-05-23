@@ -86,7 +86,7 @@ abstract class BluetoothPeripheralCallback {
      * @param descriptor the descriptor that was read
      * @param status GATT status code
      */
-    fun onDescriptorRead(peripheral: BluetoothPeripheral, value: ByteArray, descriptor: BluetoothGattDescriptor, status: GattStatus) {}
+    open fun onDescriptorRead(peripheral: BluetoothPeripheral, value: ByteArray, descriptor: BluetoothGattDescriptor, status: GattStatus) {}
 
     /**
      * Callback invoked as the result of a descriptor write operation.
@@ -97,7 +97,7 @@ abstract class BluetoothPeripheralCallback {
      * @param descriptor the descriptor written to
      * @param status the GATT status code
      */
-    fun onDescriptorWrite(peripheral: BluetoothPeripheral, value: ByteArray, descriptor: BluetoothGattDescriptor, status: GattStatus) {}
+    open fun onDescriptorWrite(peripheral: BluetoothPeripheral, value: ByteArray, descriptor: BluetoothGattDescriptor, status: GattStatus) {}
 
     /**
      * Callback invoked when the bonding process is started
@@ -134,7 +134,7 @@ abstract class BluetoothPeripheralCallback {
      * @param rssi the RSSI value
      * @param status GATT status code
      */
-    fun onReadRemoteRssi(peripheral: BluetoothPeripheral, rssi: Int, status: GattStatus) {}
+    open fun onReadRemoteRssi(peripheral: BluetoothPeripheral, rssi: Int, status: GattStatus) {}
 
     /**
      * Callback invoked as the result of a MTU request operation
@@ -144,6 +144,13 @@ abstract class BluetoothPeripheralCallback {
      * @param status GATT status code
      */
     open fun onMtuChanged(peripheral: BluetoothPeripheral, mtu: Int, status: GattStatus) {}
+
+    /**
+     * Callback invoded as the result of a connection priority request
+     *
+     * @param peripheral the peripheral
+     */
+    open fun onRequestedConnectionPriority(peripheral: BluetoothPeripheral) {}
 
     /**
      * Callback invoke as result of readPhy or setPhy operation

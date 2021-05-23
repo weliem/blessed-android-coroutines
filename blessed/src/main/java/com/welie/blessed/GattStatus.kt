@@ -20,24 +20,22 @@
  *   SOFTWARE.
  *
  */
-
-package com.welie.blessed;
-
-import org.jetbrains.annotations.NotNull;
+package com.welie.blessed
 
 /**
  * The GattStatus describes the result of a GATT operation.
  *
- * <p>Note that most of these error codes correspond to the ATT error codes as defined in the Bluetooth Standard, Volume 3, Part F, 3.4.1 Error handling p1491)
- * See https://www.bluetooth.org/docman/handlers/downloaddoc.ashx?doc_id=478726
- * </p>
  *
- * <p>Gatt status values as defined in the Android source code:
+ * Note that most of these error codes correspond to the ATT error codes as defined in the Bluetooth Standard, Volume 3, Part F, 3.4.1 Error handling p1491)
+ * See https://www.bluetooth.org/docman/handlers/downloaddoc.ashx?doc_id=478726
+ *
+ *
+ *
+ * Gatt status values as defined in the Android source code:
  * https://android.googlesource.com/platform/external/bluetooth/bluedroid/+/master/stack/include/gatt_api.h
- * </p>
+ *
  */
-public enum GattStatus {
-
+enum class GattStatus(val value: Int) {
     /**
      * Operation completed successfully
      */
@@ -136,11 +134,8 @@ public enum GattStatus {
     /**
      * The attribute parameter value was not allowed
      */
-    VALUE_NOT_ALLOWED(0x13),
-
-    // (0x80 – 0x9F) - Application error code defined by a higher layer specification.
+    VALUE_NOT_ALLOWED(0x13),  // (0x80 – 0x9F) - Application error code defined by a higher layer specification.
     // So the following codes are Android specific
-
     /**
      * No resources
      */
@@ -219,9 +214,7 @@ public enum GattStatus {
     /**
      * Command is sent but L2CAP channel is congested
      */
-    CONNECTION_CONGESTED(0x8f),
-
-    // (0xE0 – 0xFF) - Common profile and service error codes defined in Core Specification Supplement, Part B.
+    CONNECTION_CONGESTED(0x8f),  // (0xE0 – 0xFF) - Common profile and service error codes defined in Core Specification Supplement, Part B.
 
     /**
      * Client Characteristic Configuration Descriptor error
@@ -236,9 +229,7 @@ public enum GattStatus {
     /**
      * Value out of range
      */
-    VALUE_OUT_OF_RANGE(0x00FF),
-
-    // Other errors codes that are Android specific
+    VALUE_OUT_OF_RANGE(0x00FF),  // Other errors codes that are Android specific
 
     /**
      * L2CAP connection cancelled
@@ -255,18 +246,13 @@ public enum GattStatus {
      */
     UNKNOWN_STATUS_CODE(0xFFFF);
 
-    GattStatus(final int value) {
-        this.value = value;
-    }
-
-    public final int value;
-
-    @NotNull
-    public static GattStatus fromValue(final int value) {
-        for (GattStatus type : values()) {
-            if (type.value == value)
-                return type;
+    companion object {
+        @JvmStatic
+        fun fromValue(value: Int): GattStatus {
+            for (type in values()) {
+                if (type.value == value) return type
+            }
+            return UNKNOWN_STATUS_CODE
         }
-        return UNKNOWN_STATUS_CODE;
     }
 }

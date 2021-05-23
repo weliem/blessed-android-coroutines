@@ -20,20 +20,17 @@
  *   SOFTWARE.
  *
  */
+package com.welie.blessed
 
-package com.welie.blessed;
+import android.bluetooth.BluetoothGatt
 
-import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_BALANCED;
-import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_HIGH;
-import static android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER;
-
-public enum ConnectionPriority {
+enum class ConnectionPriority(val value: Int) {
     /**
      * Use the connection parameters recommended by the Bluetooth SIG.
      * This is the default value if no connection parameter update
      * is requested.
      */
-    BALANCED(CONNECTION_PRIORITY_BALANCED),
+    BALANCED(BluetoothGatt.CONNECTION_PRIORITY_BALANCED),
 
     /**
      * Request a high priority, low latency connection.
@@ -41,16 +38,10 @@ public enum ConnectionPriority {
      * amounts of data over LE quickly. Once the transfer is complete, the application should
      * request BALANCED connection parameters to reduce energy use.
      */
-    HIGH(CONNECTION_PRIORITY_HIGH),
+    HIGH(BluetoothGatt.CONNECTION_PRIORITY_HIGH),
 
     /**
      * Request low power, reduced data rate connection parameters.
      */
-    LOW_POWER(CONNECTION_PRIORITY_LOW_POWER);
-
-    ConnectionPriority(final int value) {
-        this.value = value;
-    }
-
-    public final int value;
+    LOW_POWER(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
 }

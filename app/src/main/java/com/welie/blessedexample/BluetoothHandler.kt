@@ -24,24 +24,17 @@ internal class BluetoothHandler private constructor(private val context: Context
     // Callback for peripherals
     private val peripheralCallback: BluetoothPeripheralCallback = object : BluetoothPeripheralCallback() {
         override fun onServicesDiscovered(peripheral: BluetoothPeripheral) {
-//            // Request a higher MTU, iOS always asks for 185
-//            peripheral.requestMtu(185)
-//
-//            // Request a new connection priority
-//            peripheral.requestConnectionPriority(ConnectionPriority.HIGH)
-//
-            // Read manufacturer and model number from the Device Information Service
-//            peripheral.readCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID, new BluetoothPeripheralCallback() {
-//                @Override
-//                public void onCharacteristicRead(@NotNull BluetoothPeripheral peripheral, @NotNull byte[] value, @NotNull BluetoothGattCharacteristic characteristic, @NotNull GattStatus status) {
-//                    BluetoothBytesParser parser = new BluetoothBytesParser(value);
-//                    String manufacturer = parser.getStringValue(0);
-//                    Timber.i("Received manufacturer: %s", manufacturer);
-//                }
-//            });
 
             GlobalScope.launch(SupervisorJob()) {
                 try {
+                    val mtu = peripheral.requestMtu(185)
+                    Timber.i("MTU is $mtu")
+
+                    peripheral.requestConnectionPriority(ConnectionPriority.HIGH)
+
+                    val rssi = peripheral.readRemoteRssi()
+                    Timber.i("RSSI is $rssi")
+
                     val manufacturerName = peripheral.readCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID).asString()
                     Timber.i("Received: $manufacturerName")
 
@@ -51,36 +44,26 @@ internal class BluetoothHandler private constructor(private val context: Context
                     val batteryLevel = peripheral.readCharacteristic(BTS_SERVICE_UUID, BATTERY_LEVEL_CHARACTERISTIC_UUID).asUInt8()
                     Timber.i("Battery level: $batteryLevel")
 
-                    peripheral.getCharacteristic(PLX_SERVICE_UUID, PLX_CONTINUOUS_MEASUREMENT_CHAR_UUID)?.let {
-                        peripheral.observe(it) { value ->
-                            val measurement = PulseOximeterContinuousMeasurement(value)
-                            Timber.i(measurement.toString())
+                    // Turn on notifications for Current Time Service and write it if possible
+                    peripheral.getCharacteristic(CTS_SERVICE_UUID, CURRENT_TIME_CHARACTERISTIC_UUID)?.let {
+                        // If it has the write property we write the current time
+                        if (it.supportsWritingWithResponse()) {
+                            // Write the current time unless it is an Omron device
+                            val name = peripheral.name
+                            if (!name.contains("BLEsmart_")) {
+                                val parser = BluetoothBytesParser()
+                                parser.setCurrentTime(Calendar.getInstance())
+                                peripheral.writeCharacteristic(it, parser.value, WriteType.WITH_RESPONSE)
+                            }
                         }
                     }
+
+                    setupPLXnotifications(peripheral)
                 } catch (e: IllegalArgumentException) {
                     Timber.e("illegal argument")
                 }
             }
 
-            // peripheral.readCharacteristic(DIS_SERVICE_UUID, MODEL_NUMBER_CHARACTERISTIC_UUID);
-
-//            // Turn on notifications for Current Time Service and write it if possible
-//            val currentTimeCharacteristic = peripheral.getCharacteristic(CTS_SERVICE_UUID, CURRENT_TIME_CHARACTERISTIC_UUID)
-//            if (currentTimeCharacteristic != null) {
-//                peripheral.setNotify(currentTimeCharacteristic, true)
-//
-//                // If it has the write property we write the current time
-//                if (currentTimeCharacteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE > 0) {
-//                    // Write the current time unless it is an Omron device
-//                    val name = peripheral.name
-//                    if (!name.contains("BLEsmart_")) {
-//                        val parser = BluetoothBytesParser()
-//                        parser.setCurrentTime(Calendar.getInstance())
-//                        peripheral.writeCharacteristic(currentTimeCharacteristic, parser.value, WriteType.WITH_RESPONSE)
-//                    }
-//                }
-//            }
-//
 //            // Try to turn on notifications for other characteristics
 //            //  peripheral.readCharacteristic(BTS_SERVICE_UUID, BATTERY_LEVEL_CHARACTERISTIC_UUID);
 //            peripheral.setNotify(BLP_SERVICE_UUID, BLOOD_PRESSURE_MEASUREMENT_CHARACTERISTIC_UUID, true)
@@ -109,30 +92,6 @@ internal class BluetoothHandler private constructor(private val context: Context
             }
         }
 
-        override fun onCharacteristicWrite(peripheral: BluetoothPeripheral, value: ByteArray, characteristic: BluetoothGattCharacteristic, status: GattStatus) {
-            if (status == GattStatus.SUCCESS) {
-                Timber.i("SUCCESS: Writing <%s> to <%s>", BluetoothBytesParser.bytes2String(value), characteristic.uuid)
-            } else {
-                Timber.i("ERROR: Failed writing <%s> to <%s> (%s)", BluetoothBytesParser.bytes2String(value), characteristic.uuid, status)
-            }
-        }
-
-        override fun onCharacteristicRead(peripheral: BluetoothPeripheral, value: ByteArray, characteristic: BluetoothGattCharacteristic, status: GattStatus) {
-            super.onCharacteristicRead(peripheral, value, characteristic, status)
-            val characteristicUUID = characteristic.uuid
-            val parser = BluetoothBytesParser(value)
-            if (characteristicUUID == MANUFACTURER_NAME_CHARACTERISTIC_UUID) {
-                val manufacturer = parser.getStringValue(0)
-                Timber.i("Received manufacturer: %s", manufacturer)
-            } else if (characteristicUUID == MODEL_NUMBER_CHARACTERISTIC_UUID) {
-                val modelNumber = parser.getStringValue(0)
-                Timber.i("Received modelnumber: %s", modelNumber)
-            } else if (characteristicUUID == PNP_ID_CHARACTERISTIC_UUID) {
-                val modelNumber = parser.getStringValue(0)
-                Timber.i("Received pnp: %s", modelNumber)
-            }
-        }
-
         override fun onCharacteristicUpdate(peripheral: BluetoothPeripheral, value: ByteArray, characteristic: BluetoothGattCharacteristic, status: GattStatus) {
             if (status != GattStatus.SUCCESS) return
             val characteristicUUID = characteristic.uuid
@@ -155,21 +114,7 @@ internal class BluetoothHandler private constructor(private val context: Context
                 intent.putExtra(MEASUREMENT_HEARTRATE_EXTRA, measurement)
                 sendMeasurement(intent, peripheral)
                 Timber.d("%s", measurement)
-            } else if (characteristicUUID == PLX_CONTINUOUS_MEASUREMENT_CHAR_UUID) {
-                val measurement = PulseOximeterContinuousMeasurement(value)
-                if (measurement.spO2 <= 100 && measurement.pulseRate <= 220) {
-                    val intent = Intent(MEASUREMENT_PULSE_OX)
-                    intent.putExtra(MEASUREMENT_PULSE_OX_EXTRA_CONTINUOUS, measurement)
-                    sendMeasurement(intent, peripheral)
-                }
-                Timber.d("%s", measurement)
-            } else if (characteristicUUID == PLX_SPOT_MEASUREMENT_CHAR_UUID) {
-                val measurement = PulseOximeterSpotMeasurement(value)
-                val intent = Intent(MEASUREMENT_PULSE_OX)
-                intent.putExtra(MEASUREMENT_PULSE_OX_EXTRA_SPOT, measurement)
-                sendMeasurement(intent, peripheral)
-                Timber.d("%s", measurement)
-            } else if (characteristicUUID == WSS_MEASUREMENT_CHAR_UUID) {
+            }  else if (characteristicUUID == WSS_MEASUREMENT_CHAR_UUID) {
                 val measurement = WeightMeasurement(value)
                 val intent = Intent(MEASUREMENT_WEIGHT)
                 intent.putExtra(MEASUREMENT_WEIGHT_EXTRA, measurement)
@@ -209,10 +154,6 @@ internal class BluetoothHandler private constructor(private val context: Context
             Timber.i("new MTU set: %d", mtu)
         }
 
-        private fun sendMeasurement(intent: Intent, peripheral: BluetoothPeripheral) {
-            intent.putExtra(MEASUREMENT_EXTRA_PERIPHERAL, peripheral.address)
-            context.sendBroadcast(intent)
-        }
 
         private fun writeContourClock(peripheral: BluetoothPeripheral) {
             val calendar = Calendar.getInstance()
@@ -236,6 +177,35 @@ internal class BluetoothHandler private constructor(private val context: Context
             val command = byteArrayOf(OP_CODE_REPORT_STORED_RECORDS, OPERATOR_ALL_RECORDS)
  //           peripheral.writeCharacteristic(GLUCOSE_SERVICE_UUID, GLUCOSE_RECORD_ACCESS_POINT_CHARACTERISTIC_UUID, command, WriteType.WITH_RESPONSE)
         }
+    }
+
+    private suspend fun setupPLXnotifications(peripheral: BluetoothPeripheral) {
+        peripheral.getCharacteristic(PLX_SERVICE_UUID, PLX_CONTINUOUS_MEASUREMENT_CHAR_UUID)?.let {
+            peripheral.observe(it) { value ->
+                val measurement = PulseOximeterContinuousMeasurement(value)
+                if (measurement.spO2 <= 100 && measurement.pulseRate <= 220) {
+                    val intent = Intent(MEASUREMENT_PULSE_OX)
+                    intent.putExtra(MEASUREMENT_PULSE_OX_EXTRA_CONTINUOUS, measurement)
+                    sendMeasurement(intent, peripheral)
+                }
+                Timber.d("%s", measurement)
+            }
+        }
+
+        peripheral.getCharacteristic(PLX_SERVICE_UUID, PLX_SPOT_MEASUREMENT_CHAR_UUID)?.let {
+            peripheral.observe(it) { value ->
+                val measurement = PulseOximeterSpotMeasurement(value)
+                val intent = Intent(MEASUREMENT_PULSE_OX)
+                intent.putExtra(MEASUREMENT_PULSE_OX_EXTRA_SPOT, measurement)
+                sendMeasurement(intent, peripheral)
+                Timber.d("%s", measurement)
+            }
+        }
+    }
+
+    private fun sendMeasurement(intent: Intent, peripheral: BluetoothPeripheral) {
+        intent.putExtra(MEASUREMENT_EXTRA_PERIPHERAL, peripheral.address)
+        context.sendBroadcast(intent)
     }
 
     // Callback for central

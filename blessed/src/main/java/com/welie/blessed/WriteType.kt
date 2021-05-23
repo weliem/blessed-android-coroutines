@@ -20,40 +20,26 @@
  *   SOFTWARE.
  *
  */
+package com.welie.blessed
 
-package com.welie.blessed;
-
-import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE;
-import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE;
-import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE;
-import static android.bluetooth.BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT;
-import static android.bluetooth.BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;
-import static android.bluetooth.BluetoothGattCharacteristic.WRITE_TYPE_SIGNED;
+import android.bluetooth.BluetoothGattCharacteristic
 
 /**
  * WriteType describes the type of write that can be done
  */
-public enum WriteType {
+enum class WriteType(val writeType: Int, val property: Int) {
     /**
      * Write characteristic and requesting acknowledgement by the remote peripheral
      */
-    WITH_RESPONSE(WRITE_TYPE_DEFAULT, PROPERTY_WRITE),
+    WITH_RESPONSE(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT, BluetoothGattCharacteristic.PROPERTY_WRITE),
 
     /**
      * Write characteristic without requiring a response by the remote peripheral
      */
-    WITHOUT_RESPONSE(WRITE_TYPE_NO_RESPONSE, PROPERTY_WRITE_NO_RESPONSE),
+    WITHOUT_RESPONSE(BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE, BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE),
 
     /**
      * Write characteristic including authentication signature
      */
-    SIGNED(WRITE_TYPE_SIGNED, PROPERTY_SIGNED_WRITE);
-
-    public final int writeType;
-    public final int property;
-
-    WriteType(final int writeType, final int property) {
-        this.writeType = writeType;
-        this.property = property;
-    }
+    SIGNED(BluetoothGattCharacteristic.WRITE_TYPE_SIGNED, BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE);
 }

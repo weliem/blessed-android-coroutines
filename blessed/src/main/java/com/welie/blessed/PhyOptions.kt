@@ -20,13 +20,12 @@
  *   SOFTWARE.
  *
  */
-
-package com.welie.blessed;
+package com.welie.blessed
 
 /**
  * This class represents the possible Phy options
  */
-public enum PhyOptions {
+enum class PhyOptions(val value: Int) {
     /**
      * No preferred option. Use this value in combination with PHY_LE_1M and PHY_LE_2M
      */
@@ -41,10 +40,4 @@ public enum PhyOptions {
      * Prefer 4x range option with throughput of +/- 125 Kbps
      */
     S8(2);
-
-    PhyOptions(final int value) {
-        this.value = value;
-    }
-
-    public final int value;
 }

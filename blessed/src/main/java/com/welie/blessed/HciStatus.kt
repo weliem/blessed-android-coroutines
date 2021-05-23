@@ -20,17 +20,13 @@
  *   SOFTWARE.
  *
  */
-
-package com.welie.blessed;
-
-import org.jetbrains.annotations.NotNull;
+package com.welie.blessed
 
 /**
  * This class describes the HCI error codes as defined in the Bluetooth Standard, Volume 1, Part F, 1.3 HCI Error Code, pages 364-377.
  * See https://www.bluetooth.org/docman/handlers/downloaddoc.ashx?doc_id=478726,
  */
-public enum HciStatus {
-
+enum class HciStatus(val value: Int) {
     /**
      * Command was successful
      */
@@ -379,9 +375,7 @@ public enum HciStatus {
     /**
      * An attempt was made to send or receive a packet that exceeds the maximum allowed packet length.
      */
-    PACKET_TOO_LONG(0x45),
-
-    // Additional Android specific errors
+    PACKET_TOO_LONG(0x45),  // Additional Android specific errors
     ERROR(0x85),
 
     /**
@@ -389,18 +383,12 @@ public enum HciStatus {
      */
     UNKNOWN_STATUS_CODE(0xFFFF);
 
-    HciStatus(final int value) {
-        this.value = value;
-    }
-
-    public final int value;
-
-    @NotNull
-    public static HciStatus fromValue(final int value) {
-        for (HciStatus type : values()) {
-            if (type.value == value)
-                return type;
+    companion object {
+        fun fromValue(value: Int): HciStatus {
+            for (type in values()) {
+                if (type.value == value) return type
+            }
+            return UNKNOWN_STATUS_CODE
         }
-        return UNKNOWN_STATUS_CODE;
     }
 }

@@ -20,46 +20,19 @@
  *   SOFTWARE.
  *
  */
+package com.welie.blessed
 
-package com.welie.blessed;
-
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import java.util.Objects;
+import java.util.*
 
 /**
  * This class represent a remote Central
  */
-public class BluetoothCentral {
-
-    @NotNull
-    private final String address;
-
-    @Nullable
-    private final String name;
-
-    private int currentMtu = 23;
-
-    BluetoothCentral(@NotNull String address, @Nullable String name) {
-        this.address = Objects.requireNonNull(address, "address is null");
-        this.name = name;
-    }
-
-    public @NotNull String getAddress() {
-        return address;
-    }
-
-    public @NotNull String getName() {
-        return name == null ? "" : name;
-    }
-
-    protected void setCurrentMtu(final int currentMtu) {
-        this.currentMtu = currentMtu;
-    }
-
-    public int getCurrentMtu() {
-        return currentMtu;
+class BluetoothCentral internal constructor(address: String, name: String?) {
+    val address: String
+    private val name: String?
+    var currentMtu = 23
+    fun getName(): String {
+        return name ?: ""
     }
 
     /**
@@ -67,16 +40,17 @@ public class BluetoothCentral {
      *
      * This value is derived from the current negotiated MTU or the maximum characteristic length (512)
      */
-    public int getMaximumWriteValueLength(@NotNull final WriteType writeType) {
-        Objects.requireNonNull(writeType, "writetype is null");
-
-        switch (writeType) {
-            case WITH_RESPONSE:
-                return 512;
-            case SIGNED:
-                return currentMtu - 15;
-            default:
-                return currentMtu - 3;
+    fun getMaximumWriteValueLength(writeType: WriteType): Int {
+        Objects.requireNonNull(writeType, "writetype is null")
+        return when (writeType) {
+            WriteType.WITH_RESPONSE -> 512
+            WriteType.SIGNED -> currentMtu - 15
+            else -> currentMtu - 3
         }
+    }
+
+    init {
+        this.address = Objects.requireNonNull(address, "address is null")
+        this.name = name
     }
 }
