@@ -756,9 +756,8 @@ class BluetoothPeripheral internal constructor(
                     }
                 }
             })
-
             if (!result) {
-                throw IllegalArgumentException()
+                it.resume(ByteArray(0))
             }
         }
 
@@ -774,8 +773,6 @@ class BluetoothPeripheral internal constructor(
      * @return true if the operation was enqueued, false if the characteristic does not support reading or the characteristic was not found
      */
     fun readCharacteristic(serviceUUID: UUID, characteristicUUID: UUID, result: BluetoothPeripheralCallback): Boolean {
-        Objects.requireNonNull(serviceUUID, NO_VALID_SERVICE_UUID_PROVIDED)
-        Objects.requireNonNull(characteristicUUID, NO_VALID_CHARACTERISTIC_UUID_PROVIDED)
         if (notConnected()) {
             Timber.e(PERIPHERAL_NOT_CONNECTED)
             return false

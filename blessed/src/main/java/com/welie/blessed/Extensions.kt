@@ -10,6 +10,10 @@ fun ByteArray.asString() : String {
     return parser.stringValue
 }
 
+fun ByteArray.asHexString() : String {
+    return BluetoothBytesParser.bytes2String(this)
+}
+
 fun ByteArray.asUInt8() : UInt {
     val parser = BluetoothBytesParser(this)
     return parser.getIntValue(FORMAT_UINT8).toUInt()

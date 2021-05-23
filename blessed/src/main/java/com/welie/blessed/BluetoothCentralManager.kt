@@ -131,7 +131,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
                 unconnectedPeripherals.remove(deviceAddress)
                 scannedPeripherals.remove(deviceAddress)
                 if (peripheral != null && callback != null) {
-                    connectPeripheral(peripheral, callback)
+                    connectPeripheral(peripheral)
                 }
                 if (reconnectPeripheralAddresses.size > 0) {
                     scanForAutoConnectPeripherals()
@@ -400,10 +400,8 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
      *
      * @param peripheral BLE peripheral to connect with
      */
-    fun connectPeripheral(peripheral: BluetoothPeripheral, peripheralCallback: BluetoothPeripheralCallback) {
+    fun connectPeripheral(peripheral: BluetoothPeripheral) {
         synchronized(connectLock) {
-            Objects.requireNonNull(peripheral, NO_VALID_PERIPHERAL_PROVIDED)
-            Objects.requireNonNull(peripheralCallback, NO_VALID_PERIPHERAL_CALLBACK_SPECIFIED)
             if (connectedPeripherals.containsKey(peripheral.address)) {
                 Timber.w("already connected to %s'", peripheral.address)
                 return
@@ -418,7 +416,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
             if (peripheral.isUncached) {
                 Timber.w("peripheral with address '%s' is not in the Bluetooth cache, hence connection may fail", peripheral.address)
             }
-            peripheral.peripheralCallback = peripheralCallback
+
             scannedPeripherals.remove(peripheral.address)
             unconnectedPeripherals[peripheral.address] = peripheral
             peripheral.connect()
@@ -430,10 +428,9 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
      *
      * @param peripheral the peripheral
      */
-    fun autoConnectPeripheral(peripheral: BluetoothPeripheral, peripheralCallback: BluetoothPeripheralCallback) {
+    fun autoConnectPeripheral(peripheral: BluetoothPeripheral) {
         synchronized(connectLock) {
-            Objects.requireNonNull(peripheral, NO_VALID_PERIPHERAL_PROVIDED)
-            Objects.requireNonNull(peripheralCallback, NO_VALID_PERIPHERAL_CALLBACK_SPECIFIED)
+
             if (connectedPeripherals.containsKey(peripheral.address)) {
                 Timber.w("already connected to %s'", peripheral.address)
                 return
@@ -448,14 +445,14 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
                 Timber.d("peripheral with address '%s' not in Bluetooth cache, autoconnecting by scanning", peripheral.address)
                 scannedPeripherals.remove(peripheral.address)
                 unconnectedPeripherals[peripheral.address] = peripheral
-                autoConnectPeripheralByScan(peripheral.address, peripheralCallback)
+                autoConnectPeripheralByScan(peripheral.address, BluetoothPeripheralCallback.NULL())
                 return
             }
             if (peripheral.type == PeripheralType.CLASSIC) {
                 Timber.e("peripheral does not support Bluetooth LE")
                 return
             }
-            peripheral.peripheralCallback = peripheralCallback
+            peripheral.peripheralCallback = BluetoothPeripheralCallback.NULL()
             scannedPeripherals.remove(peripheral.address)
             unconnectedPeripherals[peripheral.address] = peripheral
             peripheral.autoConnect()
@@ -523,7 +520,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
             if (peripheral.isUncached) {
                 uncachedPeripherals[peripheral] = batch[peripheral]
             } else {
-                autoConnectPeripheral(peripheral, batch[peripheral]!!)
+                autoConnectPeripheral(peripheral)
             }
         }
 
