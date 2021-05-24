@@ -1173,14 +1173,18 @@ class BluetoothPeripheral internal constructor(
 
     suspend fun requestMtu(mtu: Int): Int =
         suspendCoroutine {
-            val result = requestMtu(mtu, object : BluetoothPeripheralCallback() {
-                override fun onMtuChanged(peripheral: BluetoothPeripheral, mtu: Int, status: GattStatus) {
-                    it.resume(mtu)
-                }
-            })
+            try {
+                val result = requestMtu(mtu, object : BluetoothPeripheralCallback() {
+                    override fun onMtuChanged(peripheral: BluetoothPeripheral, mtu: Int, status: GattStatus) {
+                        it.resume(mtu)
+                    }
+                })
 
-            if (!result) {
-                it.resume(currentMtu)
+                if (!result) {
+                    it.resume(currentMtu)
+                }
+            } catch (exception: IllegalArgumentException) {
+                it.resumeWithException(exception)
             }
         }
 
@@ -1201,7 +1205,7 @@ class BluetoothPeripheral internal constructor(
      * @return true if the operation was enqueued, false otherwise
      */
     private fun requestMtu(mtu: Int, resultCallback: BluetoothPeripheralCallback): Boolean {
-        require(mtu >= DEFAULT_MTU || mtu <= MAX_MTU) { "mtu must be between 23 and 517" }
+        require(mtu in DEFAULT_MTU..MAX_MTU) { "mtu must be between 23 and 517" }
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
         val result = commandQueue.add(Runnable {

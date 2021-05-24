@@ -63,7 +63,7 @@ internal class BluetoothHandler private constructor(private val context: Context
                     writeContourClock(peripheral)
                 }
             } catch (e: IllegalArgumentException) {
-                Timber.e("illegal argument")
+                Timber.e(e.message)
             }
         }
     }
