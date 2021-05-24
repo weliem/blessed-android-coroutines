@@ -47,7 +47,8 @@ import kotlin.coroutines.suspendCoroutine
 /**
  * Central Manager class to scan and connect with bluetooth peripherals.
  */
-class BluetoothCentralManager(private val context: Context, private val bluetoothCentralManagerCallback: BluetoothCentralManagerCallback, private val callBackHandler: Handler) {
+class BluetoothCentralManager(private val context: Context, private val bluetoothCentralManagerCallback: BluetoothCentralManagerCallback) {
+    private val callBackHandler: Handler = Handler(Looper.getMainLooper())
     private val bluetoothAdapter: BluetoothAdapter
     private var bluetoothScanner: BluetoothLeScanner? = null
     private var autoConnectScanner: BluetoothLeScanner? = null
@@ -70,6 +71,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
     private var expectingBluetoothOffDisconnects = false
     private var disconnectRunnable: Runnable? = null
     private val pinCodes: MutableMap<String, String> = ConcurrentHashMap()
+    private var currentResultCallback : ((BluetoothPeripheral, ScanResult) -> Unit)? = null
 
     private val scanByNameCallback: ScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -103,7 +105,8 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
             if (isScanning) {
                 val peripheral = getPeripheral(result.device.address)
                 peripheral.setDevice(result.device)
-                bluetoothCentralManagerCallback.onDiscoveredPeripheral(peripheral, result)
+               // bluetoothCentralManagerCallback.onDiscoveredPeripheral(peripheral, result)
+                currentResultCallback?.invoke(peripheral, result)
             }
         }
     }
@@ -253,7 +256,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
      *
      * @param serviceUUIDs an array of service UUIDs
      */
-    fun scanForPeripheralsWithServices(serviceUUIDs: Array<UUID>) {
+    fun scanForPeripheralsWithServices(serviceUUIDs: Array<UUID>,  resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
         require(serviceUUIDs.isNotEmpty()) { "at least one service UUID  must be supplied" }
 
         val filters: MutableList<ScanFilter> = ArrayList()
@@ -263,6 +266,8 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
                 .build()
             filters.add(filter)
         }
+
+        currentResultCallback = resultCallback
         startScan(filters, scanSettings, defaultScanCallback)
     }
 

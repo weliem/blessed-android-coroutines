@@ -19,9 +19,9 @@ internal class BluetoothHandler private constructor(private val context: Context
     private var currentTimeCounter = 0
 
     fun setupPeripheral(peripheral: BluetoothPeripheral) {
-        GlobalScope.launch(SupervisorJob()) {
+        scope.launch {
             try {
-                val mtu = peripheral.requestMtu(185)
+                val mtu = peripheral.requestMtu(800)
                 Timber.i("MTU is $mtu")
 
                 peripheral.requestConnectionPriority(ConnectionPriority.HIGH)
@@ -43,8 +43,7 @@ internal class BluetoothHandler private constructor(private val context: Context
                     // If it has the write property we write the current time
                     if (it.supportsWritingWithResponse()) {
                         // Write the current time unless it is an Omron device
-                        val name = peripheral.name
-                        if (!name.contains("BLEsmart_")) {
+                        if (!peripheral.name.contains("BLEsmart_")) {
                             val parser = BluetoothBytesParser()
                             parser.setCurrentTime(Calendar.getInstance())
                             peripheral.writeCharacteristic(it, parser.value, WriteType.WITH_RESPONSE)
@@ -236,7 +235,27 @@ internal class BluetoothHandler private constructor(private val context: Context
         }
 
         override fun onDiscoveredPeripheral(peripheral: BluetoothPeripheral, scanResult: ScanResult) {
-            Timber.i("Found peripheral '%s'", peripheral.name)
+
+        }
+
+        override fun onBluetoothAdapterStateChanged(state: Int) {
+            Timber.i("bluetooth adapter changed state to %d", state)
+            if (state == BluetoothAdapter.STATE_ON) {
+                // Bluetooth is on now, start scanning again
+                // Scan for peripherals with a certain service UUIDs
+                central.startPairingPopupHack()
+                startScanning()
+            }
+        }
+
+        override fun onScanFailed(scanFailure: ScanFailure) {
+            Timber.i("scanning failed with error %s", scanFailure)
+        }
+    }
+
+    fun startScanning() {
+        central.scanForPeripheralsWithServices(supportedServices) { peripheral, scanResult ->
+            Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
             central.stopScan()
             scope.launch {
                 try {
@@ -246,20 +265,6 @@ internal class BluetoothHandler private constructor(private val context: Context
                     Timber.e("connection failed")
                 }
             }
-        }
-
-        override fun onBluetoothAdapterStateChanged(state: Int) {
-            Timber.i("bluetooth adapter changed state to %d", state)
-            if (state == BluetoothAdapter.STATE_ON) {
-                // Bluetooth is on now, start scanning again
-                // Scan for peripherals with a certain service UUIDs
-                central.startPairingPopupHack()
-                central.scanForPeripheralsWithServices(arrayOf(BLP_SERVICE_UUID, HTS_SERVICE_UUID, HRS_SERVICE_UUID))
-            }
-        }
-
-        override fun onScanFailed(scanFailure: ScanFailure) {
-            Timber.i("scanning failed with error %s", scanFailure)
         }
     }
 
@@ -323,40 +328,26 @@ internal class BluetoothHandler private constructor(private val context: Context
         private val CONTOUR_CLOCK = UUID.fromString("00001026-0002-11E2-9E96-0800200C9A66")
         private var instance: BluetoothHandler? = null
 
+        private val supportedServices = arrayOf(BLP_SERVICE_UUID, HTS_SERVICE_UUID, HRS_SERVICE_UUID, PLX_SERVICE_UUID, WSS_SERVICE_UUID, GLUCOSE_SERVICE_UUID)
+
         @JvmStatic
         @Synchronized
-        fun getInstance(context: Context): BluetoothHandler? {
+        fun getInstance(context: Context): BluetoothHandler {
             if (instance == null) {
                 instance = BluetoothHandler(context.applicationContext)
             }
-            return instance
+            return requireNotNull(instance)
         }
     }
 
     @JvmField
     var central: BluetoothCentralManager
 
-    val scope = CoroutineScope(SupervisorJob()+Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     init {
-
-        // Plant a tree
         Timber.plant(DebugTree())
-
-        // Create BluetoothCentral
-        central = BluetoothCentralManager(context, bluetoothCentralManagerCallback, Handler())
-
-//        scope.launch {
-//            val peripheral = central.getPeripheral("12:23:34:12:23:34")
-//            try {
-//                central.connectPeripheral(peripheral)
-//            } catch (failed: ConnectionFailedException) {
-//                Timber.e("connection failed")
-//            }
-//        }
-
-        // Scan for peripherals with a certain service UUIDs
-        central.startPairingPopupHack()
-        handler.postDelayed({ central.scanForPeripheralsWithServices(arrayOf(BLP_SERVICE_UUID, HTS_SERVICE_UUID, HRS_SERVICE_UUID, PLX_SERVICE_UUID, WSS_SERVICE_UUID, GLUCOSE_SERVICE_UUID)) }, 1000)
+        central = BluetoothCentralManager(context, bluetoothCentralManagerCallback)
+        startScanning()
     }
 }
