@@ -7,9 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import com.welie.blessed.*
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import timber.log.Timber
 import timber.log.Timber.DebugTree
 import java.nio.ByteOrder
@@ -240,7 +238,14 @@ internal class BluetoothHandler private constructor(private val context: Context
         override fun onDiscoveredPeripheral(peripheral: BluetoothPeripheral, scanResult: ScanResult) {
             Timber.i("Found peripheral '%s'", peripheral.name)
             central.stopScan()
-            central.connectPeripheral(peripheral)
+            scope.launch {
+                try {
+                    central.connectPeripheral(peripheral)
+                    setupPeripheral(peripheral)
+                } catch (connectionFailed: ConnectionFailedException) {
+                    Timber.e("connection failed")
+                }
+            }
         }
 
         override fun onBluetoothAdapterStateChanged(state: Int) {
@@ -331,6 +336,8 @@ internal class BluetoothHandler private constructor(private val context: Context
     @JvmField
     var central: BluetoothCentralManager
 
+    val scope = CoroutineScope(SupervisorJob()+Dispatchers.Default)
+
     init {
 
         // Plant a tree
@@ -338,6 +345,15 @@ internal class BluetoothHandler private constructor(private val context: Context
 
         // Create BluetoothCentral
         central = BluetoothCentralManager(context, bluetoothCentralManagerCallback, Handler())
+
+//        scope.launch {
+//            val peripheral = central.getPeripheral("12:23:34:12:23:34")
+//            try {
+//                central.connectPeripheral(peripheral)
+//            } catch (failed: ConnectionFailedException) {
+//                Timber.e("connection failed")
+//            }
+//        }
 
         // Scan for peripherals with a certain service UUIDs
         central.startPairingPopupHack()

@@ -72,4 +72,9 @@ abstract class BluetoothCentralManagerCallback {
      * @param state the current status code for the adapter
      */
     open fun onBluetoothAdapterStateChanged(state: Int) {}
+
+    /**
+     * NULL class to deal with nullability
+     */
+    internal class NULL : BluetoothCentralManagerCallback()
 }

@@ -35,6 +35,7 @@ import timber.log.Timber
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 
 /**
@@ -446,7 +447,7 @@ class BluetoothPeripheral internal constructor(
                 registerBondingBroadcastReceivers()
                 state = BluetoothProfile.STATE_CONNECTING
                 discoveryStarted = false
-                bluetoothGatt = device.connectGatt(context, false, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
+                bluetoothGatt = device.connectGatt(context, true, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
                 connectTimestamp = SystemClock.elapsedRealtime()
             }
         } else {
@@ -713,7 +714,7 @@ class BluetoothPeripheral internal constructor(
                     if (status == GattStatus.SUCCESS) {
                         it.resume(value)
                     } else {
-                        throw GattException(status)
+                        it.resumeWithException(GattException(status))
                     }
                 }
             })
@@ -791,7 +792,7 @@ class BluetoothPeripheral internal constructor(
                         if (status == GattStatus.SUCCESS) {
                             it.resume(value)
                         } else {
-                            throw GattException(status)
+                            it.resumeWithException(GattException(status))
                         }
                     }
                 })
@@ -821,7 +822,7 @@ class BluetoothPeripheral internal constructor(
                     if (status == GattStatus.SUCCESS) {
                         it.resume(value)
                     } else {
-                        throw GattException(status)
+                        it.resumeWithException(GattException(status))
                     }
                 }
             })
@@ -905,7 +906,7 @@ class BluetoothPeripheral internal constructor(
                     if (status == GattStatus.SUCCESS) {
                         it.resume(value)
                     } else {
-                        throw GattException(status)
+                        it.resumeWithException(GattException(status))
                     }
                 }
             })
@@ -954,7 +955,7 @@ class BluetoothPeripheral internal constructor(
                     if (status == GattStatus.SUCCESS) {
                         it.resume(value)
                     } else {
-                        throw GattException(status)
+                        it.resumeWithException(GattException(status))
                     }
                 }
             })
@@ -1015,7 +1016,7 @@ class BluetoothPeripheral internal constructor(
                         observeMap[characteristic] = callback
                         it.resume(true)
                     } else {
-                        throw GattException(status)
+                        it.resumeWithException(GattException(status))
                     }
                 }
             })
@@ -1033,7 +1034,7 @@ class BluetoothPeripheral internal constructor(
                         observeMap.remove(characteristic)
                         it.resume(true)
                     } else {
-                        throw GattException(status)
+                        it.resumeWithException(GattException(status))
                     }
                 }
             })
@@ -1129,7 +1130,7 @@ class BluetoothPeripheral internal constructor(
                     if (status == GattStatus.SUCCESS) {
                         it.resume(rssi)
                     } else {
-                        throw GattException(status)
+                        it.resumeWithException(GattException(status))
                     }
                 }
             })

@@ -164,5 +164,7 @@ public abstract class BluetoothPeripheralManagerCallback {
      *
      */
     public void onAdvertisingStopped() { }
+
+
 }
 
