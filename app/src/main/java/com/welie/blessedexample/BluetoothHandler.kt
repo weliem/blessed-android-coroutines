@@ -37,8 +37,8 @@ internal class BluetoothHandler private constructor(private val context: Context
                 val model = peripheral.readCharacteristic(DIS_SERVICE_UUID, MODEL_NUMBER_CHARACTERISTIC_UUID).asString()
                 Timber.i("Received: $model")
 
-//                val batteryLevel = peripheral.readCharacteristic(BTS_SERVICE_UUID, BATTERY_LEVEL_CHARACTERISTIC_UUID).asUInt8()
-//                Timber.i("Battery level: $batteryLevel")
+                val batteryLevel = peripheral.readCharacteristic(BTS_SERVICE_UUID, BATTERY_LEVEL_CHARACTERISTIC_UUID).asUInt8()
+                Timber.i("Battery level: $batteryLevel")
 
                 // Turn on notifications for Current Time Service and write it if possible
                 peripheral.getCharacteristic(CTS_SERVICE_UUID, CURRENT_TIME_CHARACTERISTIC_UUID)?.let {
