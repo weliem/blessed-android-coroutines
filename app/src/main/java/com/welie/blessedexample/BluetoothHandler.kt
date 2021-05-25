@@ -21,7 +21,7 @@ internal class BluetoothHandler private constructor(private val context: Context
     fun setupPeripheral(peripheral: BluetoothPeripheral) {
         scope.launch {
             try {
-                val mtu = peripheral.requestMtu(800)
+                val mtu = peripheral.requestMtu(185)
                 Timber.i("MTU is $mtu")
 
                 peripheral.requestConnectionPriority(ConnectionPriority.HIGH)
@@ -29,8 +29,10 @@ internal class BluetoothHandler private constructor(private val context: Context
                 val rssi = peripheral.readRemoteRssi()
                 Timber.i("RSSI is $rssi")
 
-                val manufacturerName = peripheral.readCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID).asString()
-                Timber.i("Received: $manufacturerName")
+                peripheral.getCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID)?.let {
+                    val manufacturerName = peripheral.readCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID).asString()
+                    Timber.i("Received: $manufacturerName")
+                }
 
                 val model = peripheral.readCharacteristic(DIS_SERVICE_UUID, MODEL_NUMBER_CHARACTERISTIC_UUID).asString()
                 Timber.i("Received: $model")
@@ -63,7 +65,9 @@ internal class BluetoothHandler private constructor(private val context: Context
                     writeContourClock(peripheral)
                 }
             } catch (e: IllegalArgumentException) {
-                Timber.e(e.message)
+                Timber.e(e)
+            } catch (b: GattException) {
+                Timber.e(b)
             }
         }
     }

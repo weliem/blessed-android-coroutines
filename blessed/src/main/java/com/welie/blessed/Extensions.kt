@@ -40,7 +40,7 @@ fun BluetoothGattCharacteristic.supportsWriteType(writeType: WriteType): Boolean
     val writeProperty: Int = when (writeType) {
         WriteType.WITH_RESPONSE -> PROPERTY_WRITE
         WriteType.WITHOUT_RESPONSE -> PROPERTY_WRITE_NO_RESPONSE
-        else -> -1
+        else -> 0
     }
     return properties and writeProperty > 0
 }
