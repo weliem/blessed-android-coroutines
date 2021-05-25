@@ -47,7 +47,7 @@ import kotlin.coroutines.suspendCoroutine
 /**
  * Central Manager class to scan and connect with bluetooth peripherals.
  */
-class BluetoothCentralManager(private val context: Context, private val bluetoothCentralManagerCallback: BluetoothCentralManagerCallback) {
+class BluetoothCentralManager(private val context: Context) {
     private val callBackHandler: Handler = Handler(Looper.getMainLooper())
     private val bluetoothAdapter: BluetoothAdapter
     private var bluetoothScanner: BluetoothLeScanner? = null
@@ -116,7 +116,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
         currentFilters = null
         callBackHandler.post {
             Timber.e("scan failed with error code %d (%s)", scanFailure.value, scanFailure)
-            bluetoothCentralManagerCallback.onScanFailed(scanFailure)
+         //   bluetoothCentralManagerCallback.onScanFailed(scanFailure)
         }
     }
 
@@ -146,7 +146,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
             val scanFailure = ScanFailure.fromValue(errorCode)
             Timber.e("autoConnect scan failed with error code %d (%s)", errorCode, scanFailure)
             autoConnectScanner = null
-            callBackHandler.post { bluetoothCentralManagerCallback.onScanFailed(scanFailure) }
+         //   callBackHandler.post { bluetoothCentralManagerCallback.onScanFailed(scanFailure) }
         }
     }
 
@@ -158,6 +158,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
             scannedPeripherals.remove(peripheral.address)
             connectedPeripherals[peripheral.address] = peripheral
             callBackHandler.post { currentCentralManagerCallback.onConnectedPeripheral(peripheral) }
+            callBackHandler.post { connectionStateCallback.invoke(peripheral, ConnectionState.CONNECTED)}
         }
 
         override fun connectFailed(peripheral: BluetoothPeripheral, status: HciStatus) {
@@ -180,6 +181,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
                 Timber.i("connection to '%s' (%s) failed", peripheral.name, peripheral.address)
                 connectionRetries.remove(peripheral.address)
                 callBackHandler.post { currentCentralManagerCallback.onConnectionFailed(peripheral, status) }
+                callBackHandler.post { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED)}
             }
         }
 
@@ -192,7 +194,8 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
             unconnectedPeripherals.remove(peripheral.address)
             scannedPeripherals.remove(peripheral.address)
             connectionRetries.remove(peripheral.address)
-            callBackHandler.post { bluetoothCentralManagerCallback.onDisconnectedPeripheral(peripheral, status) }
+            callBackHandler.post { currentCentralManagerCallback.onDisconnectedPeripheral(peripheral, status) }
+            callBackHandler.post { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED)}
         }
 
         override fun getPincode(peripheral: BluetoothPeripheral): String? {
@@ -390,6 +393,12 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
         get() = bluetoothScanner != null && currentCallback != null
 
 
+    private var connectionStateCallback : (peripheral : BluetoothPeripheral, state : ConnectionState) -> Unit = { peripheral, state ->  }
+
+    fun observeConnectionState(connectionCallback: (peripheral : BluetoothPeripheral, state : ConnectionState) -> Unit) {
+        connectionStateCallback = connectionCallback
+    }
+
     suspend fun connectPeripheral(peripheral: BluetoothPeripheral): Boolean =
         suspendCoroutine {
             connectPeripheral(peripheral, object : BluetoothCentralManagerCallback() {
@@ -493,7 +502,8 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
             unconnectedPeripherals.remove(peripheralAddress)
             stopAutoconnectScan()
             Timber.d("cancelling autoconnect for %s", peripheralAddress)
-            callBackHandler.post { bluetoothCentralManagerCallback.onDisconnectedPeripheral(peripheral, HciStatus.SUCCESS) }
+            //callBackHandler.post { bluetoothCentralManagerCallback.onDisconnectedPeripheral(peripheral, HciStatus.SUCCESS) }
+            callBackHandler.post { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED) }
 
             // If there are any devices left, restart the reconnection scan
             if (reconnectPeripheralAddresses.size > 0) {
@@ -825,7 +835,7 @@ class BluetoothCentralManager(private val context: Context, private val bluetoot
             val action = intent.action ?: return
             if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
                 val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
-                callBackHandler.post { bluetoothCentralManagerCallback.onBluetoothAdapterStateChanged(state) }
+               // callBackHandler.post { bluetoothCentralManagerCallback.onBluetoothAdapterStateChanged(state) }
                 handleAdapterState(state)
             }
         }

@@ -220,43 +220,6 @@ internal class BluetoothHandler private constructor(private val context: Context
         context.sendBroadcast(intent)
     }
 
-    // Callback for central
-    private val bluetoothCentralManagerCallback: BluetoothCentralManagerCallback = object : BluetoothCentralManagerCallback() {
-        override fun onConnectedPeripheral(peripheral: BluetoothPeripheral) {
-            Timber.i("connected to '%s'", peripheral.name)
-            setupPeripheral(peripheral)
-        }
-
-        override fun onConnectionFailed(peripheral: BluetoothPeripheral, status: HciStatus) {
-            Timber.e("connection '%s' failed with status %s", peripheral.name, status)
-        }
-
-        override fun onDisconnectedPeripheral(peripheral: BluetoothPeripheral, status: HciStatus) {
-            Timber.i("disconnected '%s' with status %s", peripheral.name, status)
-
-            // Reconnect to this device when it becomes available again
-            handler.postDelayed({ central.autoConnectPeripheral(peripheral) }, 5000)
-        }
-
-        override fun onDiscoveredPeripheral(peripheral: BluetoothPeripheral, scanResult: ScanResult) {
-
-        }
-
-        override fun onBluetoothAdapterStateChanged(state: Int) {
-            Timber.i("bluetooth adapter changed state to %d", state)
-            if (state == BluetoothAdapter.STATE_ON) {
-                // Bluetooth is on now, start scanning again
-                // Scan for peripherals with a certain service UUIDs
-                central.startPairingPopupHack()
-                startScanning()
-            }
-        }
-
-        override fun onScanFailed(scanFailure: ScanFailure) {
-            Timber.i("scanning failed with error %s", scanFailure)
-        }
-    }
-
     fun startScanning() {
         central.scanForPeripheralsWithServices(supportedServices) { peripheral, scanResult ->
             Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
@@ -351,7 +314,12 @@ internal class BluetoothHandler private constructor(private val context: Context
 
     init {
         Timber.plant(DebugTree())
-        central = BluetoothCentralManager(context, bluetoothCentralManagerCallback)
+        central = BluetoothCentralManager(context)
+
+        central.observeConnectionState { peripheral, state ->
+            Timber.i("Peripheral ${peripheral.name} has $state")
+        }
+
         startScanning()
     }
 }
