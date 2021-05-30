@@ -1,17 +1,9 @@
-# BLESSED for Android with Coroutine - BLE made easy
+# BLESSED for Android with Coroutines - BLE made easy
 
 [![](https://jitpack.io/v/weliem/blessed-android.svg)](https://jitpack.io/#weliem/blessed-android)
 [![Android Build](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml/badge.svg)](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml)
 
-BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and higher, that makes working with BLE on Android very easy. It is powered by Kotlin's Coroutines and turns asynchronous methods into synchronous methods. It takes care of many aspects of working with BLE you would normally have to take care of yourself like:
-
-* *Queueing commands*, so you can don't have to wait anymore for the completion of a command before issueing the next command
-* *Bonding*, so you don't have to do anything in order to robustly bond devices
-* *Easy scanning*, so you don't have to setup complex scan filters
-* *Managing threading*, so you don't have to worry about on which thread to issue commands or receive results 
-* *Threadsafe*, so you don't see weird threading related issues anymore
-* *Workarounds for some known Android bugs*, so you don't have to research any workarounds
-* *Higher abstraction methods for convenience*, so that you don't have to do a lot of low-level management to get stuff done
+BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and higher, that makes working with BLE on Android very easy. It is powered by Kotlin's **Coroutines** and turns asynchronous methods into synchronous methods!
 
 The library consists of 5 core classes and corresponding callback abstract classes:
 1. `BluetoothCentralManager`, for scanning and connecting peripherals
