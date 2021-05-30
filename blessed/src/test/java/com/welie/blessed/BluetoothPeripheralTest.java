@@ -468,7 +468,7 @@ public class BluetoothPeripheralTest {
         when(gatt.readCharacteristic(characteristic)).thenReturn(true);
 
         // When
-        peripheral.readCharacteristic(SERVICE_UUID, UUID.fromString("00002A1C-0000-1000-8000-00805f9b34fb"));
+        peripheral.readCharacteristicSuspend(SERVICE_UUID, UUID.fromString("00002A1C-0000-1000-8000-00805f9b34fb"));
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
 
         // Then

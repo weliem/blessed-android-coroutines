@@ -134,8 +134,11 @@ enum class GattStatus(val value: Int) {
     /**
      * The attribute parameter value was not allowed
      */
-    VALUE_NOT_ALLOWED(0x13),  // (0x80 – 0x9F) - Application error code defined by a higher layer specification.
+    VALUE_NOT_ALLOWED(0x13),
+
+    // (0x80 – 0x9F) - Application error code defined by a higher layer specification.
     // So the following codes are Android specific
+
     /**
      * No resources
      */
