@@ -1,9 +1,9 @@
-# BLESSED for Android - BLE made easy
+# BLESSED for Android with Coroutine - BLE made easy
 
 [![](https://jitpack.io/v/weliem/blessed-android.svg)](https://jitpack.io/#weliem/blessed-android)
 [![Android Build](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml/badge.svg)](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml)
 
-BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 5 and higher, that makes working with BLE on Android very easy. It takes care of many aspects of working with BLE you would normally have to take care of yourself like:
+BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and higher, that makes working with BLE on Android very easy. It takes care of many aspects of working with BLE you would normally have to take care of yourself like:
 
 * *Queueing commands*, so you can don't have to wait anymore for the completion of a command before issueing the next command
 * *Bonding*, so you don't have to do anything in order to robustly bond devices
@@ -14,10 +14,10 @@ BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 5 and h
 * *Higher abstraction methods for convenience*, so that you don't have to do a lot of low-level management to get stuff done
 
 The library consists of 5 core classes and corresponding callback abstract classes:
-1. `BluetoothCentralManager`, and it companion abstract class `BluetoothCentralManagerCallback`
-2. `BluetoothPeripheral`, and it's companion abstract class `BluetoothPeripheralCallback`
+1. `BluetoothCentralManager`, for scanning and connecting peripherals
+2. `BluetoothPeripheral`, for all peripheral related methods
 3. `BluetoothPeripheralManager`, and it's companion abstract class `BluetoothPeripheralManagerCallback`
-4. `BluetoothCentral`, which has no callback class
+4. `BluetoothCentral`
 5. `BluetoothBytesParser`
 
 The `BluetoothCentralManager` class is used to scan for devices and manage connections. The `BluetoothPeripheral` class is a replacement for the standard Android `BluetoothDevice` and `BluetoothGatt` classes. It wraps all GATT related peripheral functionality. 
@@ -101,11 +101,8 @@ In all cases, you will get a callback on `onDisconnectedPeripheral` when the dis
 
 ## Service discovery
 
-The BLESSED library will automatically do the service discovery for you and once it is completed you will receive the following callback:
+The BLESSED library will automatically do the service discovery for you. When the CONNECTED state is reached, the services have also been discovered.
 
-```java
-public void onServicesDiscovered(BluetoothPeripheral peripheral)
-```
 In order to get the services you can use methods like `getServices()` or `getService(UUID)`. In order to get hold of characteristics you can call `getCharacteristic(UUID)` on the BluetoothGattService object or call `getCharacteristic()` on the BluetoothPeripheral object.
 
 This callback is the proper place to start enabling notifications or read/write characteristics.
@@ -114,24 +111,14 @@ This callback is the proper place to start enabling notifications or read/write 
 
 Reading and writing to characteristics is done using the following methods:
 
-```java
-public boolean readCharacteristic(BluetoothGattCharacteristic characteristic)
-public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic, byte[] value, WriteType writeType)
+```kotlin
+fun readCharacteristic(characteristic: BluetoothGattCharacteristic ): ByteArray
+fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, value: ByteArray, writeType: WriteType): ByteArray
 ```
 
-Both methods are asynchronous and will be queued up. So you can just issue as many read/write operations as you like without waiting for each of them to complete. You will receive a callback once the result of the operation is available.
-For read operations you will get a callback on:
+Both methods are *synchronous* and will block until they have completed. The method `readCharacteristic` will return the ByteArray that has been read. It will throw IllegalArgumentException if the characteristic you provide is not readable, and it will throw GattException if the read was not succesful.
 
-```java
-public void onCharacteristicUpdate(BluetoothPeripheral peripheral, byte[] value, BluetoothGattCharacteristic characteristic, GattStatus status)
-```
-If you want to write to a characteristic, you need to provide a `value` and a `writeType`. The `writeType` is usually `WITH_RESPONSE` or `WITHOUT_RESPONSE`. If the write type you specify is not supported by the characteristic you will see an error in your log. For write operations you will get a callback on:
-```java
-public void onCharacteristicWrite(BluetoothPeripheral peripheral, byte[] value, BluetoothGattCharacteristic characteristic, final GattStatus status)
-
-```
-
-In these callbacks, the *value* parameter is the threadsafe byte array that was received. Use this value instead of the value that is part of the BluetoothGattCharacteristic object, since that one may have changed in the mean time because of incoming notifications or write operations.
+If you want to write to a characteristic, you need to provide a `value` and a `writeType`. The `writeType` is usually `WITH_RESPONSE` or `WITHOUT_RESPONSE`. If the write type you specify is not supported by the characteristic you will see an error in your log. 
 
 ## Turning notifications on/off
 
