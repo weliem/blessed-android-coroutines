@@ -3,7 +3,7 @@
 [![](https://jitpack.io/v/weliem/blessed-android.svg)](https://jitpack.io/#weliem/blessed-android)
 [![Android Build](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml/badge.svg)](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml)
 
-BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and higher, that makes working with BLE on Android very easy. It takes care of many aspects of working with BLE you would normally have to take care of yourself like:
+BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and higher, that makes working with BLE on Android very easy. It is powered by Kotlin's Coroutines and turns asynchronous methods into synchronous methods. It takes care of many aspects of working with BLE you would normally have to take care of yourself like:
 
 * *Queueing commands*, so you can don't have to wait anymore for the completion of a command before issueing the next command
 * *Bonding*, so you don't have to do anything in order to robustly bond devices
@@ -116,7 +116,7 @@ fun readCharacteristic(characteristic: BluetoothGattCharacteristic ): ByteArray
 fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, value: ByteArray, writeType: WriteType): ByteArray
 ```
 
-Both methods are *synchronous* and will block until they have completed. The method `readCharacteristic` will return the ByteArray that has been read. It will throw IllegalArgumentException if the characteristic you provide is not readable, and it will throw GattException if the read was not succesful.
+Both methods are **synchronous** and will block until they have completed. The method `readCharacteristic` will return the ByteArray that has been read. It will throw `IllegalArgumentException` if the characteristic you provide is not readable, and it will throw `GattException` if the read was not succesful.
 
 If you want to write to a characteristic, you need to provide a `value` and a `writeType`. The `writeType` is usually `WITH_RESPONSE` or `WITHOUT_RESPONSE`. If the write type you specify is not supported by the characteristic you will see an error in your log. 
 
