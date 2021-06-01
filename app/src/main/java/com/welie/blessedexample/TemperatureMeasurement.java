@@ -50,6 +50,6 @@ public class TemperatureMeasurement implements Serializable {
         } else {
             formattedTimestamp = "null";
         }
-        return String.format(Locale.ENGLISH,"%.1f %s (%s), at (%s)", temperatureValue, unit == TemperatureUnit.Celsius ? "celcius" : "fahrenheit", type, formattedTimestamp);
+        return String.format(Locale.ENGLISH,"%.1f %s (%s), at (%s)", temperatureValue, unit == TemperatureUnit.Celsius ? "Celsius" : "fahrenheit", type, formattedTimestamp);
     }
 }
