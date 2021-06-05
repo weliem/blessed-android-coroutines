@@ -20,88 +20,91 @@
  *   SOFTWARE.
  *
  */
+package com.welie.blessed
 
-package com.welie.blessed;
-
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
-import android.bluetooth.BluetoothGattService;
-import android.bluetooth.le.AdvertiseSettings;
-
-import org.jetbrains.annotations.NotNull;
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothGattService
+import android.bluetooth.le.AdvertiseSettings
+import com.welie.blessed.GattStatus
 
 /**
  * Callbacks for the BluetoothPeripheralManager class
  */
-public abstract class BluetoothPeripheralManagerCallback {
-
+abstract class BluetoothPeripheralManagerCallback {
     /**
      * Indicates whether a local service has been added successfully.
      *
      * @param status  Returns SUCCESS if the service was added
-     *                successfully.
+     * successfully.
      * @param service The service that has been added
      */
-    public void onServiceAdded(@NotNull GattStatus status, @NotNull BluetoothGattService service) { }
+    fun onServiceAdded(status: GattStatus, service: BluetoothGattService) {}
 
     /**
      * A remote central has requested to read a local characteristic.
      *
-     * <p>This callback is called before the current value of the characteristic is returned to the central.
+     *
+     * This callback is called before the current value of the characteristic is returned to the central.
      * Therefore, any modifications to the characteristic value can still be made.
-     * If the characteristic's value is longer than the MTU - 1 bytes, a long read will be executed automatically</p>
+     * If the characteristic's value is longer than the MTU - 1 bytes, a long read will be executed automatically
      *
      * @param bluetoothCentral the central that is doing the request
      * @param characteristic the characteristic to be read
      */
-    public void onCharacteristicRead(@NotNull BluetoothCentral bluetoothCentral, @NotNull BluetoothGattCharacteristic characteristic) { }
+    fun onCharacteristicRead(bluetoothCentral: BluetoothCentral, characteristic: BluetoothGattCharacteristic) {}
 
     /**
      * A remote central has requested to write a local characteristic.
      *
-     * <p>This callback is called before the current value of the characteristic is set to {@code value}.
-     * The value should be checked and a GattStatus should be returned. If anything else than GattStatus.SUCCESS is returned,
-     * the characteristic's value will not be updated.</p>
      *
-     * <p>The value may be up to 512 bytes (in case of a long write)</p>
+     * This callback is called before the current value of the characteristic is set to `value`.
+     * The value should be checked and a GattStatus should be returned. If anything else than GattStatus.SUCCESS is returned,
+     * the characteristic's value will not be updated.
+     *
+     *
+     * The value may be up to 512 bytes (in case of a long write)
      *
      * @param bluetoothCentral the central that is doing the request
      * @param characteristic the characteristic to be written
      * @param value the value the central wants to write
      * @return GattStatus.SUCCESS if the value is acceptable, otherwise an appropriate status
      */
-    public GattStatus onCharacteristicWrite(@NotNull BluetoothCentral bluetoothCentral, @NotNull BluetoothGattCharacteristic characteristic, @NotNull byte[] value) {
-        return GattStatus.SUCCESS;
+    fun onCharacteristicWrite(bluetoothCentral: BluetoothCentral, characteristic: BluetoothGattCharacteristic, value: ByteArray): GattStatus {
+        return GattStatus.SUCCESS
     }
 
     /**
      * A remote central has requested to read a local descriptor.
      *
-     * <p>This callback is called before the current value of the descriptor is returned to the central.
+     *
+     * This callback is called before the current value of the descriptor is returned to the central.
      * Therefore, any modifications to the characteristic value can still be made.
-     * If the descriptor's value is longer than the MTU - 1 bytes, a long read will be executed automatically</p>
+     * If the descriptor's value is longer than the MTU - 1 bytes, a long read will be executed automatically
      *
      * @param bluetoothCentral the central that is doing the request
      * @param descriptor the descriptor to be read
      */
-    public void onDescriptorRead(@NotNull BluetoothCentral bluetoothCentral, @NotNull BluetoothGattDescriptor descriptor) { }
+    fun onDescriptorRead(bluetoothCentral: BluetoothCentral, descriptor: BluetoothGattDescriptor) {}
 
     /**
      * A remote central has requested to write a local descriptor.
      *
-     * <p>This callback is called before the current value of the descriptor is set to {@code value}.
-     * The value should be checked and a GattStatus should be returned. If anything else than GattStatus.SUCCESS is returned,
-     * the descriptor's value will not be updated.</p>
      *
-     * <p>The value may be up to 512 bytes (in case of a long write)</p>
+     * This callback is called before the current value of the descriptor is set to `value`.
+     * The value should be checked and a GattStatus should be returned. If anything else than GattStatus.SUCCESS is returned,
+     * the descriptor's value will not be updated.
+     *
+     *
+     * The value may be up to 512 bytes (in case of a long write)
      *
      * @param bluetoothCentral the central that is doing the request
      * @param descriptor the descriptor to be written
      * @param value the value the central wants to write
      * @return GattStatus.SUCCESS if the value is acceptable, otherwise an appropriate status
      */
-    public GattStatus onDescriptorWrite(@NotNull BluetoothCentral bluetoothCentral, @NotNull BluetoothGattDescriptor descriptor, @NotNull byte[] value) {
-        return GattStatus.SUCCESS;
+    fun onDescriptorWrite(bluetoothCentral: BluetoothCentral, descriptor: BluetoothGattDescriptor, value: ByteArray): GattStatus {
+        return GattStatus.SUCCESS
     }
 
     /**
@@ -110,7 +113,7 @@ public abstract class BluetoothPeripheralManagerCallback {
      * @param bluetoothCentral the central
      * @param characteristic the characteristic
      */
-    public void onNotifyingEnabled(@NotNull BluetoothCentral bluetoothCentral, @NotNull BluetoothGattCharacteristic characteristic) { }
+    fun onNotifyingEnabled(bluetoothCentral: BluetoothCentral, characteristic: BluetoothGattCharacteristic) {}
 
     /**
      * A remote central has disabled notifications or indications for a characteristic
@@ -118,7 +121,7 @@ public abstract class BluetoothPeripheralManagerCallback {
      * @param bluetoothCentral the central
      * @param characteristic the characteristic
      */
-    public void onNotifyingDisabled(@NotNull BluetoothCentral bluetoothCentral, @NotNull BluetoothGattCharacteristic characteristic) { }
+    fun onNotifyingDisabled(bluetoothCentral: BluetoothCentral, characteristic: BluetoothGattCharacteristic) {}
 
     /**
      * A notification has been sent to a central
@@ -128,43 +131,39 @@ public abstract class BluetoothPeripheralManagerCallback {
      * @param characteristic the characteristic for which the notification was sent
      * @param status the status of the operation
      */
-    public void onNotificationSent(@NotNull BluetoothCentral bluetoothCentral, @NotNull byte[] value, @NotNull BluetoothGattCharacteristic characteristic, @NotNull GattStatus status) {
-    }
+    fun onNotificationSent(bluetoothCentral: BluetoothCentral, value: ByteArray, characteristic: BluetoothGattCharacteristic, status: GattStatus) {}
 
     /**
      * A remote central has connected
      *
      * @param bluetoothCentral the central
      */
-    public void onCentralConnected(@NotNull BluetoothCentral bluetoothCentral) { }
+    fun onCentralConnected(bluetoothCentral: BluetoothCentral) {}
 
     /**
      * A remote central has disconnected
      *
      * @param bluetoothCentral the central
      */
-    public void onCentralDisconnected(@NotNull BluetoothCentral bluetoothCentral) { }
+    fun onCentralDisconnected(bluetoothCentral: BluetoothCentral) {}
 
     /**
      * Advertising has successfully started
      *
      * @param settingsInEffect the AdvertiseSettings that are currently active
      */
-    public void onAdvertisingStarted(@NotNull AdvertiseSettings settingsInEffect) { }
+    fun onAdvertisingStarted(settingsInEffect: AdvertiseSettings) {}
 
     /**
      * Advertising has failed
      *
      * @param advertiseError the error explaining why the advertising failed
      */
-    public void onAdvertiseFailure(@NotNull AdvertiseError advertiseError) { }
+    fun onAdvertiseFailure(advertiseError: AdvertiseError) {}
 
     /**
      * Advertising has stopped
      *
      */
-    public void onAdvertisingStopped() { }
-
-
+    fun onAdvertisingStopped() {}
 }
-

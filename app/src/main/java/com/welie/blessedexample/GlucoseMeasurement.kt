@@ -1,56 +1,48 @@
-package com.welie.blessedexample;
+package com.welie.blessedexample
 
-import com.welie.blessed.BluetoothBytesParser;
+import com.welie.blessed.BluetoothBytesParser
+import com.welie.blessed.BluetoothBytesParser.Companion.FORMAT_SFLOAT
+import com.welie.blessed.BluetoothBytesParser.Companion.FORMAT_SINT16
+import com.welie.blessed.BluetoothBytesParser.Companion.FORMAT_UINT16
+import com.welie.blessed.BluetoothBytesParser.Companion.FORMAT_UINT8
+import com.welie.blessedexample.ObservationUnit.MiligramPerDeciliter
+import com.welie.blessedexample.ObservationUnit.MmolPerLiter
+import java.util.*
 
-import java.io.Serializable;
-import java.util.Date;
-import java.util.Locale;
+data class GlucoseMeasurement(
+    val value: Float?,
+    val unit: ObservationUnit,
+    val timestamp: Date?,
+    val sequenceNumber: Int,
+    val contextWillFollow: Boolean,
+    val createdAt: Date = Calendar.getInstance().time
+) {
+    companion object {
+        fun fromBytes(value: ByteArray): GlucoseMeasurement {
+            val parser = BluetoothBytesParser(value)
+            val flags: Int = parser.getIntValue(FORMAT_UINT8)
+            val timeOffsetPresent = flags and 0x01 > 0
+            val typeAndLocationPresent = flags and 0x02 > 0
+            val unit = if (flags and 0x04 > 0) MmolPerLiter else MiligramPerDeciliter
+            val contextWillFollow = flags and 0x10 > 0
 
-import static com.welie.blessed.BluetoothBytesParser.FORMAT_SFLOAT;
-import static com.welie.blessed.BluetoothBytesParser.FORMAT_UINT8;
-import static com.welie.blessed.BluetoothBytesParser.FORMAT_SINT16;
-import static com.welie.blessed.BluetoothBytesParser.FORMAT_UINT16;
-import static com.welie.blessedexample.GlucoseMeasurementUnit.MiligramPerDeciliter;
-import static com.welie.blessedexample.GlucoseMeasurementUnit.MmolPerLiter;
+            val sequenceNumber = parser.getIntValue(FORMAT_UINT16)
+            var timestamp = parser.dateTime
+            if (timeOffsetPresent) {
+                val timeOffset: Int = parser.getIntValue(FORMAT_SINT16)
+                timestamp = Date(timestamp.time + timeOffset * 60000)
+            }
 
-public class GlucoseMeasurement implements Serializable {
+            val multiplier = if (unit === MiligramPerDeciliter) 100000 else 1000
+            val glucoseValue = if (typeAndLocationPresent) parser.getFloatValue(FORMAT_SFLOAT) * multiplier else null
 
-    public final GlucoseMeasurementUnit unit;
-    public Date timestamp;
-    public int sequenceNumber;
-    public boolean contextWillFollow;
-    public float value;
-
-    public GlucoseMeasurement(byte[] byteArray) {
-        BluetoothBytesParser parser = new BluetoothBytesParser(byteArray);
-
-        // Parse flags
-        final int flags = parser.getIntValue(FORMAT_UINT8);
-        final boolean timeOffsetPresent = (flags & 0x01) > 0;
-        final boolean typeAndLocationPresent = (flags & 0x02) > 0;
-        unit = (flags & 0x04) > 0 ? MmolPerLiter : MiligramPerDeciliter;
-        contextWillFollow = (flags & 0x10) > 0;
-
-        // Sequence number is used to match the reading with an optional glucose context
-        sequenceNumber = parser.getIntValue(FORMAT_UINT16);
-
-        // Read timestamp
-        timestamp = parser.getDateTime();
-
-        if (timeOffsetPresent) {
-            int timeOffset = parser.getIntValue(FORMAT_SINT16);
-            timestamp = new Date(timestamp.getTime() + (timeOffset * 60000));
+            return GlucoseMeasurement(
+                unit = unit,
+                timestamp = timestamp,
+                sequenceNumber = sequenceNumber,
+                value = glucoseValue,
+                contextWillFollow = contextWillFollow
+            )
         }
-
-        if (typeAndLocationPresent) {
-            final float glucoseConcentration = parser.getFloatValue(FORMAT_SFLOAT);
-            final int multiplier = unit == MiligramPerDeciliter ? 100000 : 1000;
-            value = glucoseConcentration * multiplier;
-        }
-    }
-
-    @Override
-    public String toString() {
-        return String.format(Locale.ENGLISH,"%.1f %s, at (%s)", value, unit == MmolPerLiter ? "mmol/L" : "mg/dL", timestamp);
     }
 }

@@ -401,10 +401,8 @@ class BluetoothCentralManager(private val context: Context) {
         connectionStateCallback = connectionCallback
     }
 
-    fun connectPeripheral(peripheral: BluetoothPeripheral): Boolean =
-        runBlocking(Dispatchers.IO) { connectPeripheralSuspend(peripheral) }
 
-    private suspend fun connectPeripheralSuspend(peripheral: BluetoothPeripheral): Boolean =
+    suspend fun connectPeripheral(peripheral: BluetoothPeripheral): Boolean =
         suspendCoroutine {
             connectPeripheral(peripheral, object : BluetoothCentralManagerCallback() {
                 override fun onConnectedPeripheral(peripheral: BluetoothPeripheral) {

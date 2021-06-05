@@ -1,284 +1,238 @@
-package com.welie.blessedexample;
+package com.welie.blessedexample
 
-import android.Manifest;
-import android.app.AlertDialog;
-import android.bluetooth.BluetoothAdapter;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.DialogInterface;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.pm.PackageManager;
-import android.location.LocationManager;
-import android.os.Build;
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import android.os.Bundle;
-import android.widget.TextView;
+import android.Manifest
+import android.app.AlertDialog
+import android.bluetooth.BluetoothAdapter
+import android.content.*
+import android.content.pm.PackageManager
+import android.location.LocationManager
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.view.View
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import com.welie.blessed.BluetoothPeripheral
+import com.welie.blessedexample.BluetoothHandler.Companion.getInstance
+import com.welie.blessedexample.MainActivity
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.consumeAsFlow
+import timber.log.Timber
+import java.text.DateFormat
+import java.text.SimpleDateFormat
+import java.util.*
 
-import com.welie.blessed.BluetoothCentralManager;
-import com.welie.blessed.BluetoothPeripheral;
+class MainActivity : AppCompatActivity() {
+    private var measurementValue: TextView? = null
+    private val dateFormat: DateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.ENGLISH)
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-
-import timber.log.Timber;
-
-public class MainActivity extends AppCompatActivity {
-
-    private TextView measurementValue;
-    private static final int REQUEST_ENABLE_BT = 1;
-    private static final int ACCESS_LOCATION_REQUEST = 2;
-    private final DateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.ENGLISH);
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        measurementValue = (TextView) findViewById(R.id.bloodPressureValue);
-
-        registerReceiver(locationServiceStateReceiver, new IntentFilter((LocationManager.MODE_CHANGED_ACTION)));
-        registerReceiver(bloodPressureDataReceiver, new IntentFilter( BluetoothHandler.MEASUREMENT_BLOODPRESSURE ));
-        registerReceiver(temperatureDataReceiver, new IntentFilter( BluetoothHandler.MEASUREMENT_TEMPERATURE ));
-        registerReceiver(heartRateDataReceiver, new IntentFilter( BluetoothHandler.MEASUREMENT_HEARTRATE ));
-        registerReceiver(pulseOxDataReceiver, new IntentFilter( BluetoothHandler.MEASUREMENT_PULSE_OX ));
-        registerReceiver(weightDataReceiver, new IntentFilter(BluetoothHandler.MEASUREMENT_WEIGHT));
-        registerReceiver(glucoseDataReceiver, new IntentFilter(BluetoothHandler.MEASUREMENT_GLUCOSE));
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+        measurementValue = findViewById<View>(R.id.bloodPressureValue) as TextView
+        registerReceiver(locationServiceStateReceiver, IntentFilter(LocationManager.MODE_CHANGED_ACTION))
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-
+    override fun onResume() {
+        super.onResume()
         if (BluetoothAdapter.getDefaultAdapter() != null) {
-            if (!isBluetoothEnabled()) {
-                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            if (!isBluetoothEnabled) {
+                val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
             } else {
-                checkPermissions();
+                checkPermissions()
             }
         } else {
-            Timber.e("This device has no Bluetooth hardware");
+            Timber.e("This device has no Bluetooth hardware")
         }
     }
 
-    private boolean isBluetoothEnabled() {
-        BluetoothAdapter bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        if(bluetoothAdapter == null) return false;
+    private val isBluetoothEnabled: Boolean
+        get() {
+            val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: return false
+            return bluetoothAdapter.isEnabled
+        }
 
-        return bluetoothAdapter.isEnabled();
-    }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private void initBluetoothHandler()
-    {
-        BluetoothHandler.getInstance(getApplicationContext());
-    }
+    private fun initBluetoothHandler() {
+        val bluetoothHandler = getInstance(applicationContext)
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        unregisterReceiver(locationServiceStateReceiver);
-        unregisterReceiver(bloodPressureDataReceiver);
-        unregisterReceiver(temperatureDataReceiver);
-        unregisterReceiver(heartRateDataReceiver);
-        unregisterReceiver(pulseOxDataReceiver);
-        unregisterReceiver(weightDataReceiver);
-        unregisterReceiver(glucoseDataReceiver);
-    }
-
-    private final BroadcastReceiver locationServiceStateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (action != null && action.equals(LocationManager.MODE_CHANGED_ACTION)) {
-                boolean isEnabled = areLocationServicesEnabled();
-                Timber.i("Location service state changed to: %s", isEnabled ? "on" : "off");
-                checkPermissions();
+        scope.launch {
+            bluetoothHandler.heartRateChannel.consumeAsFlow().collect {
+                measurementValue?.text = String.format(Locale.ENGLISH, "%d bpm", it.pulse)
             }
-        }
-    };
-
-    private final BroadcastReceiver bloodPressureDataReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            BluetoothPeripheral peripheral = getPeripheral(intent.getStringExtra(BluetoothHandler.MEASUREMENT_EXTRA_PERIPHERAL));
-            BloodPressureMeasurement measurement = (BloodPressureMeasurement) intent.getSerializableExtra(BluetoothHandler.MEASUREMENT_BLOODPRESSURE_EXTRA);
-            if (measurement == null) return;
-
-            measurementValue.setText(String.format(Locale.ENGLISH, "%.0f/%.0f %s, %.0f bpm\n%s\n\nfrom %s", measurement.systolic, measurement.diastolic, measurement.isMMHG ? "mmHg" : "kpa", measurement.pulseRate, dateFormat.format(measurement.timestamp), peripheral.getName()));
-        }
-    };
-
-    private final BroadcastReceiver temperatureDataReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            BluetoothPeripheral peripheral = getPeripheral(intent.getStringExtra(BluetoothHandler.MEASUREMENT_EXTRA_PERIPHERAL));
-            TemperatureMeasurement measurement = (TemperatureMeasurement) intent.getSerializableExtra(BluetoothHandler.MEASUREMENT_TEMPERATURE_EXTRA);
-            if (measurement == null) return;
-
-            measurementValue.setText(String.format(Locale.ENGLISH, "%.1f %s (%s)\n%s\n\nfrom %s", measurement.temperatureValue, measurement.unit == TemperatureUnit.Celsius ? "celsius" : "fahrenheit", measurement.type, dateFormat.format(measurement.timestamp), peripheral.getName()));
-        }
-    };
-
-    private final BroadcastReceiver heartRateDataReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            HeartRateMeasurement measurement = (HeartRateMeasurement) intent.getSerializableExtra(BluetoothHandler.MEASUREMENT_HEARTRATE_EXTRA);
-            if (measurement == null) return;
-
-            measurementValue.setText(String.format(Locale.ENGLISH, "%d bpm", measurement.pulse));
-        }
-    };
-
-    private final BroadcastReceiver pulseOxDataReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            BluetoothPeripheral peripheral = getPeripheral(intent.getStringExtra(BluetoothHandler.MEASUREMENT_EXTRA_PERIPHERAL));
-            PulseOximeterContinuousMeasurement measurement = (PulseOximeterContinuousMeasurement) intent.getSerializableExtra(BluetoothHandler.MEASUREMENT_PULSE_OX_EXTRA_CONTINUOUS);
-            if (measurement != null) {
-                measurementValue.setText(String.format(Locale.ENGLISH, "SpO2 %d%%,  Pulse %d bpm\n\nfrom %s", measurement.getSpO2(), measurement.getPulseRate(), peripheral.getName()));
+            bluetoothHandler.temperatureChannel.consumeAsFlow().collect {
+                measurementValue?.text = String.format(
+                    Locale.ENGLISH,
+                    "%.1f %s (%s)\n%s\n",
+                    it.temperatureValue,
+                    if (it.unit == ObservationUnit.Celsius) "celsius" else "fahrenheit",
+                    it.type,
+                    dateFormat.format(it.timestamp ?: Calendar.getInstance())
+                )
             }
-            PulseOximeterSpotMeasurement spotMeasurement = (PulseOximeterSpotMeasurement) intent.getSerializableExtra(BluetoothHandler.MEASUREMENT_PULSE_OX_EXTRA_SPOT);
-            if (spotMeasurement != null) {
-                measurementValue.setText(String.format(Locale.ENGLISH, "SpO2 %d%%,  Pulse %d bpm\n%s\n\nfrom %s", spotMeasurement.getSpO2(), spotMeasurement.getPulseRate(), dateFormat.format(spotMeasurement.getTimestamp()), peripheral.getName()));
+            bluetoothHandler.bloodpressureChannel.consumeAsFlow().collect {
+                measurementValue!!.text = String.format(
+                    Locale.ENGLISH,
+                    "%.0f/%.0f %s, %.0f bpm\n%s\n",
+                    it.systolic,
+                    it.diastolic,
+                    if (it.unit == ObservationUnit.MMHG) "mmHg" else "kpa",
+                    it.pulseRate,
+                    dateFormat.format(it.timestamp ?: Calendar.getInstance())
+                )
             }
-        }
-    };
-
-    private final BroadcastReceiver weightDataReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            BluetoothPeripheral peripheral = getPeripheral(intent.getStringExtra(BluetoothHandler.MEASUREMENT_EXTRA_PERIPHERAL));
-            WeightMeasurement measurement = (WeightMeasurement) intent.getSerializableExtra(BluetoothHandler.MEASUREMENT_WEIGHT_EXTRA);
-            if (measurement != null) {
-                measurementValue.setText(String.format(Locale.ENGLISH, "%.1f %s\n%s\n\nfrom %s", measurement.weight, measurement.unit.toString(), dateFormat.format(measurement.timestamp), peripheral.getName()));
+            bluetoothHandler.glucoseChannel.consumeAsFlow().collect {
+                measurementValue!!.text = String.format(
+                    Locale.ENGLISH,
+                    "%.1f %s\n%s\n",
+                    it.value,
+                    if (it.unit === ObservationUnit.MmolPerLiter) "mmol/L" else "mg/dL",
+                    dateFormat.format(it.timestamp ?: Calendar.getInstance()),
+                )
             }
-        }
-    };
-
-    private final BroadcastReceiver glucoseDataReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            BluetoothPeripheral peripheral = getPeripheral(intent.getStringExtra(BluetoothHandler.MEASUREMENT_EXTRA_PERIPHERAL));
-            GlucoseMeasurement measurement = (GlucoseMeasurement) intent.getSerializableExtra(BluetoothHandler.MEASUREMENT_GLUCOSE_EXTRA);
-            if (measurement != null) {
-                measurementValue.setText(String.format(Locale.ENGLISH, "%.1f %s\n%s\n\nfrom %s", measurement.value, measurement.unit == GlucoseMeasurementUnit.MmolPerLiter ? "mmol/L" : "mg/dL", dateFormat.format(measurement.timestamp), peripheral.getName()));
+            bluetoothHandler.weightChannel.consumeAsFlow().collect {
+                measurementValue!!.text =
+                    String.format(
+                        Locale.ENGLISH,
+                        "%.1f %s\n%s\n\nfrom %s",
+                        it.weight, it.unit.toString(),
+                        dateFormat.format(it.timestamp ?: Calendar.getInstance())
+                    )
             }
-        }
-    };
+            bluetoothHandler.pulseOxSpotChannel.consumeAsFlow().collect {
+                measurementValue!!.text = String.format(
+                    Locale.ENGLISH,
+                    "SpO2 %d%%,  Pulse %d bpm\n",
+                    it.spO2,
+                    it.pulseRate)
 
-    private BluetoothPeripheral getPeripheral(String peripheralAddress) {
-        BluetoothCentralManager central = BluetoothHandler.getInstance(getApplicationContext()).central;
-        return central.getPeripheral(peripheralAddress);
-    }
-
-    private void checkPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            String[] missingPermissions = getMissingPermissions(getRequiredPermissions());
-            if (missingPermissions.length > 0) {
-                requestPermissions(missingPermissions, ACCESS_LOCATION_REQUEST);
-            } else {
-                permissionsGranted();
+            }
+            bluetoothHandler.pulseOxContinuousChannel.consumeAsFlow().collect {
+                measurementValue!!.text = String.format(
+                    Locale.ENGLISH,
+                    "SpO2 %d%%,  Pulse %d bpm\n%s\n\nfrom %s",
+                    it.spO2,
+                    it.pulseRate,
+                    dateFormat.format(Calendar.getInstance())
+                )
             }
         }
     }
 
-    private String[] getMissingPermissions(String[] requiredPermissions) {
-        List<String> missingPermissions = new ArrayList<>();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            for (String requiredPermission : requiredPermissions) {
-                if (getApplicationContext().checkSelfPermission(requiredPermission) != PackageManager.PERMISSION_GRANTED) {
-                    missingPermissions.add(requiredPermission);
-                }
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(locationServiceStateReceiver)
+    }
+
+    private val locationServiceStateReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val action = intent.action
+            if (action != null && action == LocationManager.MODE_CHANGED_ACTION) {
+                val isEnabled = areLocationServicesEnabled()
+                Timber.i("Location service state changed to: %s", if (isEnabled) "on" else "off")
+                checkPermissions()
             }
         }
-        return missingPermissions.toArray(new String[0]);
     }
 
-    private String[] getRequiredPermissions() {
-        int targetSdkVersion = getApplicationInfo().targetSdkVersion;
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && targetSdkVersion >= Build.VERSION_CODES.Q)
-            return new String[] {Manifest.permission.ACCESS_FINE_LOCATION};
-        else return new String[] {Manifest.permission.ACCESS_COARSE_LOCATION};
+    private fun getPeripheral(peripheralAddress: String): BluetoothPeripheral {
+        val central = getInstance(applicationContext).central
+        return central.getPeripheral(peripheralAddress)
     }
 
-    private void permissionsGranted() {
+    private fun checkPermissions() {
+        val missingPermissions = getMissingPermissions(requiredPermissions)
+        if (missingPermissions.isNotEmpty()) {
+            requestPermissions(missingPermissions, ACCESS_LOCATION_REQUEST)
+        } else {
+            permissionsGranted()
+        }
+    }
+
+    private fun getMissingPermissions(requiredPermissions: Array<String>): Array<String> {
+        val missingPermissions: MutableList<String> = ArrayList()
+        for (requiredPermission in requiredPermissions) {
+            if (applicationContext.checkSelfPermission(requiredPermission) != PackageManager.PERMISSION_GRANTED) {
+                missingPermissions.add(requiredPermission)
+            }
+        }
+        return missingPermissions.toTypedArray()
+    }
+
+    private val requiredPermissions: Array<String>
+        get() {
+            val targetSdkVersion = applicationInfo.targetSdkVersion
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && targetSdkVersion >= Build.VERSION_CODES.Q) arrayOf(Manifest.permission.ACCESS_FINE_LOCATION) else arrayOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        }
+
+    private fun permissionsGranted() {
         // Check if Location services are on because they are required to make scanning work
         if (checkLocationServices()) {
-            initBluetoothHandler();
+            initBluetoothHandler()
         }
     }
 
-    private boolean areLocationServicesEnabled() {
-        LocationManager locationManager = (LocationManager) getApplicationContext().getSystemService(Context.LOCATION_SERVICE);
-        if (locationManager == null) {
-            Timber.e("could not get location manager");
-            return false;
-        }
-
-        boolean isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
-        boolean isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
-
-        return isGpsEnabled || isNetworkEnabled;
+    private fun areLocationServicesEnabled(): Boolean {
+        val locationManager = applicationContext.getSystemService(LOCATION_SERVICE) as LocationManager
+        val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        return isGpsEnabled || isNetworkEnabled
     }
 
-    private boolean checkLocationServices() {
-        if (!areLocationServicesEnabled()) {
-            new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("Location services are not enabled")
-                    .setMessage("Scanning for Bluetooth peripherals requires locations services to be enabled.") // Want to enable?
-                    .setPositiveButton("Enable", new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            dialogInterface.cancel();
-                            startActivity(new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS));
-                        }
-                    })
-                    .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            // if this button is clicked, just close
-                            // the dialog box and do nothing
-                            dialog.cancel();
-                        }
-                    })
-                    .create()
-                    .show();
-            return false;
+    private fun checkLocationServices(): Boolean {
+        return if (!areLocationServicesEnabled()) {
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("Location services are not enabled")
+                .setMessage("Scanning for Bluetooth peripherals requires locations services to be enabled.") // Want to enable?
+                .setPositiveButton("Enable") { dialogInterface, i ->
+                    dialogInterface.cancel()
+                    startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                }
+                .setNegativeButton("Cancel") { dialog, which -> // if this button is clicked, just close
+                    // the dialog box and do nothing
+                    dialog.cancel()
+                }
+                .create()
+                .show()
+            false
         } else {
-            return true;
+            true
         }
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         // Check if all permission were granted
-        boolean allGranted = true;
-        for (int result : grantResults) {
+        var allGranted = true
+        for (result in grantResults) {
             if (result != PackageManager.PERMISSION_GRANTED) {
-                allGranted = false;
-                break;
+                allGranted = false
+                break
             }
         }
-
         if (allGranted) {
-            permissionsGranted();
+            permissionsGranted()
         } else {
-            new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("Location permission is required for scanning Bluetooth peripherals")
-                    .setMessage("Please grant permissions")
-                    .setPositiveButton("Retry", new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            dialogInterface.cancel();
-                            checkPermissions();
-                        }
-                    })
-                    .create()
-                    .show();
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("Location permission is required for scanning Bluetooth peripherals")
+                .setMessage("Please grant permissions")
+                .setPositiveButton("Retry") { dialogInterface, i ->
+                    dialogInterface.cancel()
+                    checkPermissions()
+                }
+                .create()
+                .show()
         }
+    }
+
+    companion object {
+        private const val REQUEST_ENABLE_BT = 1
+        private const val ACCESS_LOCATION_REQUEST = 2
     }
 }

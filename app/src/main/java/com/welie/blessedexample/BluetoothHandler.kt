@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import com.welie.blessed.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.Channel.Factory.UNLIMITED
 import timber.log.Timber
 import timber.log.Timber.DebugTree
 import java.nio.ByteOrder
@@ -12,6 +14,13 @@ import java.util.*
 internal class BluetoothHandler private constructor(private val context: Context) {
 
     private var currentTimeCounter = 0
+    val heartRateChannel = Channel<HeartRateMeasurement>(UNLIMITED)
+    val bloodpressureChannel = Channel<BloodPressureMeasurement>(UNLIMITED)
+    val glucoseChannel = Channel<GlucoseMeasurement>(UNLIMITED)
+    val pulseOxSpotChannel = Channel<PulseOximeterSpotMeasurement>(UNLIMITED)
+    val pulseOxContinuousChannel = Channel<PulseOximeterContinuousMeasurement>(UNLIMITED)
+    val temperatureChannel = Channel<TemperatureMeasurement>(UNLIMITED)
+    val weightChannel = Channel<WeightMeasurement>(UNLIMITED)
 
     private fun setupPeripheral(peripheral: BluetoothPeripheral) {
         scope.launch(Dispatchers.IO) {
@@ -41,7 +50,7 @@ internal class BluetoothHandler private constructor(private val context: Context
                     if (it.supportsWritingWithResponse()) {
                         // Write the current time unless it is an Omron device
                         if (!peripheral.name.contains("BLEsmart_")) {
-                            val parser = BluetoothBytesParser()
+                            val parser = BluetoothBytesParser(ByteOrder.LITTLE_ENDIAN)
                             parser.setCurrentTime(Calendar.getInstance())
                             peripheral.writeCharacteristic(it, parser.value, WriteType.WITH_RESPONSE)
                         }
@@ -113,10 +122,8 @@ internal class BluetoothHandler private constructor(private val context: Context
     private suspend fun setupHRSnotifications(peripheral: BluetoothPeripheral) {
         peripheral.getCharacteristic(HRS_SERVICE_UUID, HEARTRATE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
-                val measurement = HeartRateMeasurement(value)
-                val intent = Intent(MEASUREMENT_HEARTRATE)
-                intent.putExtra(MEASUREMENT_HEARTRATE_EXTRA, measurement)
-                sendMeasurement(intent, peripheral)
+                val measurement = HeartRateMeasurement.fromBytes(value)
+                scope.launch { heartRateChannel.send(measurement) }
                 Timber.d("%s", measurement)
             }
         }
@@ -125,10 +132,8 @@ internal class BluetoothHandler private constructor(private val context: Context
     private suspend fun setupWSSnotifications(peripheral: BluetoothPeripheral) {
         peripheral.getCharacteristic(WSS_SERVICE_UUID, WSS_MEASUREMENT_CHAR_UUID)?.let {
             peripheral.observe(it) { value ->
-                val measurement = WeightMeasurement(value)
-                val intent = Intent(MEASUREMENT_WEIGHT)
-                intent.putExtra(MEASUREMENT_WEIGHT_EXTRA, measurement)
-                sendMeasurement(intent, peripheral)
+                val measurement = WeightMeasurement.fromBytes(value)
+                scope.launch { weightChannel.send(measurement) }
                 Timber.d("%s", measurement)
             }
         }
@@ -137,10 +142,8 @@ internal class BluetoothHandler private constructor(private val context: Context
     private suspend fun setupGLXnotifications(peripheral: BluetoothPeripheral) {
         peripheral.getCharacteristic(GLUCOSE_SERVICE_UUID, GLUCOSE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
-                val measurement = GlucoseMeasurement(value)
-                val intent = Intent(MEASUREMENT_GLUCOSE)
-                intent.putExtra(MEASUREMENT_GLUCOSE_EXTRA, measurement)
-                sendMeasurement(intent, peripheral)
+                val measurement = GlucoseMeasurement.fromBytes(value)
+                scope.launch { glucoseChannel.send(measurement) }
                 Timber.d("%s", measurement)
             }
         }
@@ -166,10 +169,8 @@ internal class BluetoothHandler private constructor(private val context: Context
     private suspend fun setupBLPnotifications(peripheral: BluetoothPeripheral) {
         peripheral.getCharacteristic(BLP_SERVICE_UUID, BLOOD_PRESSURE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
-                val measurement = BloodPressureMeasurement(value)
-                val intent = Intent(MEASUREMENT_BLOODPRESSURE)
-                intent.putExtra(MEASUREMENT_BLOODPRESSURE_EXTRA, measurement)
-                sendMeasurement(intent, peripheral)
+                val measurement = BloodPressureMeasurement.fromBytes(value)
+                scope.launch { bloodpressureChannel.send(measurement) }
                 Timber.d("%s", measurement)
             }
         }
@@ -178,10 +179,8 @@ internal class BluetoothHandler private constructor(private val context: Context
     private suspend fun setupHTSnotifications(peripheral: BluetoothPeripheral) {
         peripheral.getCharacteristic(HTS_SERVICE_UUID, TEMPERATURE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
-                val measurement = TemperatureMeasurement(value)
-                val intent = Intent(MEASUREMENT_TEMPERATURE)
-                intent.putExtra(MEASUREMENT_TEMPERATURE_EXTRA, measurement)
-                sendMeasurement(intent, peripheral)
+                val measurement = TemperatureMeasurement.fromBytes(value)
+                scope.launch { temperatureChannel.send(measurement) }
                 Timber.d("%s", measurement)
             }
         }
@@ -190,11 +189,9 @@ internal class BluetoothHandler private constructor(private val context: Context
     private suspend fun setupPLXnotifications(peripheral: BluetoothPeripheral) {
         peripheral.getCharacteristic(PLX_SERVICE_UUID, PLX_CONTINUOUS_MEASUREMENT_CHAR_UUID)?.let {
             peripheral.observe(it) { value ->
-                val measurement = PulseOximeterContinuousMeasurement(value)
+                val measurement = PulseOximeterContinuousMeasurement.fromBytes(value)
                 if (measurement.spO2 <= 100 && measurement.pulseRate <= 220) {
-                    val intent = Intent(MEASUREMENT_PULSE_OX)
-                    intent.putExtra(MEASUREMENT_PULSE_OX_EXTRA_CONTINUOUS, measurement)
-                    sendMeasurement(intent, peripheral)
+                    scope.launch { pulseOxContinuousChannel.send(measurement) }
                 }
                 Timber.d("%s", measurement)
             }
@@ -202,28 +199,23 @@ internal class BluetoothHandler private constructor(private val context: Context
 
         peripheral.getCharacteristic(PLX_SERVICE_UUID, PLX_SPOT_MEASUREMENT_CHAR_UUID)?.let {
             peripheral.observe(it) { value ->
-                val measurement = PulseOximeterSpotMeasurement(value)
-                val intent = Intent(MEASUREMENT_PULSE_OX)
-                intent.putExtra(MEASUREMENT_PULSE_OX_EXTRA_SPOT, measurement)
-                sendMeasurement(intent, peripheral)
+                val measurement = PulseOximeterSpotMeasurement.fromBytes(value)
+                scope.launch { pulseOxSpotChannel.send(measurement) }
                 Timber.d("%s", measurement)
             }
         }
-    }
-
-    private fun sendMeasurement(intent: Intent, peripheral: BluetoothPeripheral) {
-        intent.putExtra(MEASUREMENT_EXTRA_PERIPHERAL, peripheral.address)
-        context.sendBroadcast(intent)
     }
 
     private fun startScanning() {
         central.scanForPeripheralsWithServices(supportedServices) { peripheral, scanResult ->
             Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
             central.stopScan()
-            try {
-                central.connectPeripheral(peripheral)
-            } catch (connectionFailed: ConnectionFailedException) {
-                Timber.e("connection failed")
+            scope.launch(Dispatchers.IO) {
+                try {
+                    central.connectPeripheral(peripheral)
+                } catch (connectionFailed: ConnectionFailedException) {
+                    Timber.e("connection failed")
+                }
             }
         }
     }

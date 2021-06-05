@@ -2,8 +2,6 @@ package com.welie.blessed
 
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattCharacteristic.*
-import com.welie.blessed.BluetoothBytesParser.FORMAT_UINT8
-
 
 fun ByteArray.asString() : String {
     val parser = BluetoothBytesParser(this)
