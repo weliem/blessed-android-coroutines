@@ -123,7 +123,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(HRS_SERVICE_UUID, HEARTRATE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = HeartRateMeasurement.fromBytes(value)
-                scope.launch { heartRateChannel.send(measurement) }
+                heartRateChannel.offer(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -133,7 +133,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(WSS_SERVICE_UUID, WSS_MEASUREMENT_CHAR_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = WeightMeasurement.fromBytes(value)
-                scope.launch { weightChannel.send(measurement) }
+                weightChannel.offer(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -143,7 +143,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(GLUCOSE_SERVICE_UUID, GLUCOSE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = GlucoseMeasurement.fromBytes(value)
-                scope.launch { glucoseChannel.send(measurement) }
+                glucoseChannel.offer(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -170,7 +170,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(BLP_SERVICE_UUID, BLOOD_PRESSURE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = BloodPressureMeasurement.fromBytes(value)
-                scope.launch { bloodpressureChannel.send(measurement) }
+                bloodpressureChannel.offer(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -180,7 +180,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(HTS_SERVICE_UUID, TEMPERATURE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = TemperatureMeasurement.fromBytes(value)
-                scope.launch { temperatureChannel.send(measurement) }
+                temperatureChannel.offer(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -191,7 +191,7 @@ internal class BluetoothHandler private constructor(private val context: Context
             peripheral.observe(it) { value ->
                 val measurement = PulseOximeterContinuousMeasurement.fromBytes(value)
                 if (measurement.spO2 <= 100 && measurement.pulseRate <= 220) {
-                    scope.launch { pulseOxContinuousChannel.send(measurement) }
+                    pulseOxContinuousChannel.offer(measurement)
                 }
                 Timber.d("%s", measurement)
             }
@@ -200,7 +200,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(PLX_SERVICE_UUID, PLX_SPOT_MEASUREMENT_CHAR_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = PulseOximeterSpotMeasurement.fromBytes(value)
-                scope.launch { pulseOxSpotChannel.send(measurement) }
+                pulseOxSpotChannel.offer(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -210,6 +210,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         central.scanForPeripheralsWithServices(supportedServices) { peripheral, scanResult ->
             Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
             central.stopScan()
+
             scope.launch(Dispatchers.IO) {
                 try {
                     central.connectPeripheral(peripheral)
@@ -221,22 +222,6 @@ internal class BluetoothHandler private constructor(private val context: Context
     }
 
     companion object {
-        // Intent constants
-        const val MEASUREMENT_BLOODPRESSURE = "blessed.measurement.bloodpressure"
-        const val MEASUREMENT_BLOODPRESSURE_EXTRA = "blessed.measurement.bloodpressure.extra"
-        const val MEASUREMENT_TEMPERATURE = "blessed.measurement.temperature"
-        const val MEASUREMENT_TEMPERATURE_EXTRA = "blessed.measurement.temperature.extra"
-        const val MEASUREMENT_HEARTRATE = "blessed.measurement.heartrate"
-        const val MEASUREMENT_HEARTRATE_EXTRA = "blessed.measurement.heartrate.extra"
-        const val MEASUREMENT_GLUCOSE = "blessed.measurement.glucose"
-        const val MEASUREMENT_GLUCOSE_EXTRA = "blessed.measurement.glucose.extra"
-        const val MEASUREMENT_PULSE_OX = "blessed.measurement.pulseox"
-        const val MEASUREMENT_PULSE_OX_EXTRA_CONTINUOUS = "blessed.measurement.pulseox.extra.continuous"
-        const val MEASUREMENT_PULSE_OX_EXTRA_SPOT = "blessed.measurement.pulseox.extra.spot"
-        const val MEASUREMENT_WEIGHT = "blessed.measurement.weight"
-        const val MEASUREMENT_WEIGHT_EXTRA = "blessed.measurement.weight.extra"
-        const val MEASUREMENT_EXTRA_PERIPHERAL = "blessed.measurement.peripheral"
-
         // UUIDs for the Blood Pressure service (BLP)
         private val BLP_SERVICE_UUID = UUID.fromString("00001810-0000-1000-8000-00805f9b34fb")
         private val BLOOD_PRESSURE_MEASUREMENT_CHARACTERISTIC_UUID = UUID.fromString("00002A35-0000-1000-8000-00805f9b34fb")

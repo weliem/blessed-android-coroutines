@@ -56,68 +56,123 @@ class MainActivity : AppCompatActivity() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+
+
     private fun initBluetoothHandler() {
         val bluetoothHandler = getInstance(applicationContext)
 
+        collectBloodPressure(bluetoothHandler)
+        collectHeartRate(bluetoothHandler)
+        collectGlucose(bluetoothHandler)
+        collectPulseOxContinuous(bluetoothHandler)
+        collectPulseOxSpot(bluetoothHandler)
+        collectTemperature(bluetoothHandler)
+        collectWeight(bluetoothHandler)
+    }
+
+    private fun collectBloodPressure(bluetoothHandler: BluetoothHandler) {
         scope.launch {
-            bluetoothHandler.heartRateChannel.consumeAsFlow().collect {
-                measurementValue?.text = String.format(Locale.ENGLISH, "%d bpm", it.pulse)
-            }
-            bluetoothHandler.temperatureChannel.consumeAsFlow().collect {
-                measurementValue?.text = String.format(
-                    Locale.ENGLISH,
-                    "%.1f %s (%s)\n%s\n",
-                    it.temperatureValue,
-                    if (it.unit == ObservationUnit.Celsius) "celsius" else "fahrenheit",
-                    it.type,
-                    dateFormat.format(it.timestamp ?: Calendar.getInstance())
-                )
-            }
             bluetoothHandler.bloodpressureChannel.consumeAsFlow().collect {
-                measurementValue!!.text = String.format(
-                    Locale.ENGLISH,
-                    "%.0f/%.0f %s, %.0f bpm\n%s\n",
-                    it.systolic,
-                    it.diastolic,
-                    if (it.unit == ObservationUnit.MMHG) "mmHg" else "kpa",
-                    it.pulseRate,
-                    dateFormat.format(it.timestamp ?: Calendar.getInstance())
-                )
-            }
-            bluetoothHandler.glucoseChannel.consumeAsFlow().collect {
-                measurementValue!!.text = String.format(
-                    Locale.ENGLISH,
-                    "%.1f %s\n%s\n",
-                    it.value,
-                    if (it.unit === ObservationUnit.MmolPerLiter) "mmol/L" else "mg/dL",
-                    dateFormat.format(it.timestamp ?: Calendar.getInstance()),
-                )
-            }
-            bluetoothHandler.weightChannel.consumeAsFlow().collect {
-                measurementValue!!.text =
-                    String.format(
+                withContext(Dispatchers.Main) {
+                    measurementValue!!.text = String.format(
                         Locale.ENGLISH,
-                        "%.1f %s\n%s\n\nfrom %s",
-                        it.weight, it.unit.toString(),
+                        "%.0f/%.0f %s, %.0f bpm\n%s\n",
+                        it.systolic,
+                        it.diastolic,
+                        if (it.unit == ObservationUnit.MMHG) "mmHg" else "kpa",
+                        it.pulseRate,
                         dateFormat.format(it.timestamp ?: Calendar.getInstance())
                     )
+                }
             }
-            bluetoothHandler.pulseOxSpotChannel.consumeAsFlow().collect {
-                measurementValue!!.text = String.format(
-                    Locale.ENGLISH,
-                    "SpO2 %d%%,  Pulse %d bpm\n",
-                    it.spO2,
-                    it.pulseRate)
+        }
+    }
 
+    private fun collectGlucose(bluetoothHandler: BluetoothHandler) {
+        scope.launch {
+            bluetoothHandler.glucoseChannel.consumeAsFlow().collect {
+                withContext(Dispatchers.Main) {
+                    measurementValue!!.text = String.format(
+                        Locale.ENGLISH,
+                        "%.1f %s\n%s\n",
+                        it.value,
+                        if (it.unit === ObservationUnit.MmolPerLiter) "mmol/L" else "mg/dL",
+                        dateFormat.format(it.timestamp ?: Calendar.getInstance()),
+                    )
+                }
             }
+        }
+    }
+
+    private fun collectHeartRate(bluetoothHandler: BluetoothHandler) {
+        scope.launch {
+            bluetoothHandler.heartRateChannel.consumeAsFlow().collect {
+                withContext(Dispatchers.Main) {
+                    measurementValue?.text = String.format(Locale.ENGLISH, "%d bpm", it.pulse)
+                }
+            }
+        }
+    }
+
+    private fun collectPulseOxContinuous(bluetoothHandler: BluetoothHandler) {
+        scope.launch {
             bluetoothHandler.pulseOxContinuousChannel.consumeAsFlow().collect {
-                measurementValue!!.text = String.format(
-                    Locale.ENGLISH,
-                    "SpO2 %d%%,  Pulse %d bpm\n%s\n\nfrom %s",
-                    it.spO2,
-                    it.pulseRate,
-                    dateFormat.format(Calendar.getInstance())
-                )
+                withContext(Dispatchers.Main) {
+                    measurementValue!!.text = String.format(
+                        Locale.ENGLISH,
+                        "SpO2 %d%%,  Pulse %d bpm\n%s\n\nfrom %s",
+                        it.spO2,
+                        it.pulseRate,
+                        dateFormat.format(Calendar.getInstance())
+                    )
+                }
+            }
+        }
+    }
+
+    private fun collectPulseOxSpot(bluetoothHandler: BluetoothHandler) {
+        scope.launch {
+            bluetoothHandler.pulseOxSpotChannel.consumeAsFlow().collect {
+                withContext(Dispatchers.Main) {
+                    measurementValue!!.text = String.format(
+                        Locale.ENGLISH,
+                        "SpO2 %d%%,  Pulse %d bpm\n",
+                        it.spO2,
+                        it.pulseRate
+                    )
+                }
+            }
+        }
+    }
+
+    private fun collectTemperature(bluetoothHandler: BluetoothHandler) {
+        scope.launch {
+            bluetoothHandler.temperatureChannel.consumeAsFlow().collect {
+                withContext(Dispatchers.Main) {
+                    measurementValue?.text = String.format(
+                        Locale.ENGLISH,
+                        "%.1f %s (%s)\n%s\n",
+                        it.temperatureValue,
+                        if (it.unit == ObservationUnit.Celsius) "celsius" else "fahrenheit",
+                        it.type,
+                        dateFormat.format(it.timestamp ?: Calendar.getInstance())
+                    )
+                }
+            }
+        }
+    }
+
+    private fun collectWeight(bluetoothHandler: BluetoothHandler) {
+        scope.launch {
+            bluetoothHandler.weightChannel.consumeAsFlow().collect {
+                withContext(Dispatchers.Main) {
+                    measurementValue!!.text = String.format(
+                            Locale.ENGLISH,
+                            "%.1f %s\n%s\n",
+                            it.weight, it.unit.toString(),
+                            dateFormat.format(it.timestamp ?: Calendar.getInstance())
+                    )
+                }
             }
         }
     }
@@ -189,11 +244,12 @@ class MainActivity : AppCompatActivity() {
             AlertDialog.Builder(this@MainActivity)
                 .setTitle("Location services are not enabled")
                 .setMessage("Scanning for Bluetooth peripherals requires locations services to be enabled.") // Want to enable?
-                .setPositiveButton("Enable") { dialogInterface, i ->
+                .setPositiveButton("Enable") { dialogInterface, _ ->
                     dialogInterface.cancel()
                     startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
                 }
-                .setNegativeButton("Cancel") { dialog, which -> // if this button is clicked, just close
+                .setNegativeButton("Cancel") { dialog, _ ->
+                    // if this button is clicked, just close
                     // the dialog box and do nothing
                     dialog.cancel()
                 }
@@ -222,7 +278,7 @@ class MainActivity : AppCompatActivity() {
             AlertDialog.Builder(this@MainActivity)
                 .setTitle("Location permission is required for scanning Bluetooth peripherals")
                 .setMessage("Please grant permissions")
-                .setPositiveButton("Retry") { dialogInterface, i ->
+                .setPositiveButton("Retry") { dialogInterface, _ ->
                     dialogInterface.cancel()
                     checkPermissions()
                 }

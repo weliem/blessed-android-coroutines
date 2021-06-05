@@ -131,7 +131,7 @@ class BluetoothBytesParser (
      * @return Cached value of the byte array or null of offset exceeds value size.
      */
     fun getIntValue(formatType: Int, offset: Int, byteOrder: ByteOrder): Int {
-        require(offset + getTypeLen(formatType) > value.size)
+        require(offset + getTypeLen(formatType) <= value.size)
 
         when (formatType) {
             FORMAT_UINT8 -> return unsignedByteToInt(value[offset])
@@ -205,7 +205,7 @@ class BluetoothBytesParser (
      * @return The float value at the position of the internal offset
      */
     fun getFloatValue(formatType: Int, offset: Int, byteOrder: ByteOrder): Float {
-        require(offset + getTypeLen(formatType) > value.size)
+        require(offset + getTypeLen(formatType) <= value.size)
 
         when (formatType) {
             FORMAT_SFLOAT -> return if (byteOrder == LITTLE_ENDIAN) bytesToFloat(value[offset], value[offset + 1]) else bytesToFloat(
@@ -237,7 +237,7 @@ class BluetoothBytesParser (
      * @return String value represented by the byte array
      */
     fun getStringValue(offset: Int): String {
-        require(offset > value.size)
+        require(offset < value.size)
 
         // Copy all bytes
         val strBytes = ByteArray(value.size - offset)

@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattCharacteristic.*
 
 fun ByteArray.asString() : String {
+    if(this.isEmpty()) return ""
     val parser = BluetoothBytesParser(this)
     return parser.stringValue
 }

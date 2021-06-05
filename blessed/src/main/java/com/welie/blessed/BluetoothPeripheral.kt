@@ -35,6 +35,7 @@ import timber.log.Timber
 import java.lang.Runnable
 import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -75,6 +76,7 @@ class BluetoothPeripheral internal constructor(
     private var nrTries = 0
     private var connectTimestamp: Long = 0
 
+    private val callbackScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     /**
@@ -146,9 +148,9 @@ class BluetoothPeripheral internal constructor(
                         notifyingCharacteristics.remove(parentCharacteristic)
                     }
                 }
-                scope.launch { currentResultCallback.onNotificationStateUpdate(this@BluetoothPeripheral, parentCharacteristic, gattStatus) }
+                callbackScope.launch { currentResultCallback.onNotificationStateUpdate(this@BluetoothPeripheral, parentCharacteristic, gattStatus) }
             } else {
-                scope.launch { currentResultCallback.onDescriptorWrite(this@BluetoothPeripheral, currentWriteBytes, descriptor, gattStatus) }
+                callbackScope.launch { currentResultCallback.onDescriptorWrite(this@BluetoothPeripheral, currentWriteBytes, descriptor, gattStatus) }
             }
             completedCommand()
         }
@@ -160,13 +162,13 @@ class BluetoothPeripheral internal constructor(
             }
 
             val value = nonnullOf(descriptor.value)
-            scope.launch { currentResultCallback.onDescriptorRead(this@BluetoothPeripheral, value, descriptor, gattStatus) }
+            callbackScope.launch { currentResultCallback.onDescriptorRead(this@BluetoothPeripheral, value, descriptor, gattStatus) }
             completedCommand()
         }
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
             val value = nonnullOf(characteristic.value)
-            scope.launch { observeMap[characteristic]?.invoke(value) }
+            callbackScope.launch { observeMap[characteristic]?.invoke(value) }
         }
 
         override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
@@ -176,7 +178,7 @@ class BluetoothPeripheral internal constructor(
             }
 
             val value = nonnullOf(characteristic.value)
-            scope.launch { currentResultCallback.onCharacteristicRead(this@BluetoothPeripheral, value, characteristic, gattStatus) }
+            callbackScope.launch { currentResultCallback.onCharacteristicRead(this@BluetoothPeripheral, value, characteristic, gattStatus) }
             completedCommand()
         }
 
@@ -188,7 +190,7 @@ class BluetoothPeripheral internal constructor(
 
             val value = currentWriteBytes
             currentWriteBytes = ByteArray(0)
-            scope.launch { currentResultCallback.onCharacteristicWrite(this@BluetoothPeripheral, value, characteristic, gattStatus) }
+            callbackScope.launch { currentResultCallback.onCharacteristicWrite(this@BluetoothPeripheral, value, characteristic, gattStatus) }
             completedCommand()
         }
 
@@ -198,7 +200,7 @@ class BluetoothPeripheral internal constructor(
                 Timber.e("reading RSSI failed, status '%s'", gattStatus)
             }
 
-            scope.launch { currentResultCallback.onReadRemoteRssi(this@BluetoothPeripheral, rssi, gattStatus) }
+            callbackScope.launch { currentResultCallback.onReadRemoteRssi(this@BluetoothPeripheral, rssi, gattStatus) }
             completedCommand()
         }
 
@@ -209,7 +211,7 @@ class BluetoothPeripheral internal constructor(
             }
 
             currentMtu = mtu
-            scope.launch { currentResultCallback.onMtuChanged(this@BluetoothPeripheral, mtu, gattStatus) }
+            callbackScope.launch { currentResultCallback.onMtuChanged(this@BluetoothPeripheral, mtu, gattStatus) }
 
             // Only complete the command if we initiated the operation. It can also be initiated by the remote peripheral...
             if (currentCommand == REQUEST_MTU_COMMAND) {
@@ -225,7 +227,7 @@ class BluetoothPeripheral internal constructor(
             } else {
                 Timber.i("updated Phy: tx = %s, rx = %s", PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy))
             }
-            scope.launch { currentResultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy), gattStatus) }
+            callbackScope.launch { currentResultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy), gattStatus) }
             completedCommand()
         }
 
@@ -236,7 +238,7 @@ class BluetoothPeripheral internal constructor(
             } else {
                 Timber.i("updated Phy: tx = %s, rx = %s", PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy))
             }
-            scope.launch { currentResultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy), gattStatus) }
+            callbackScope.launch { currentResultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy), gattStatus) }
         }
 
         /**
@@ -250,7 +252,7 @@ class BluetoothPeripheral internal constructor(
             } else {
                 Timber.e("connection parameters update failed with status '%s'", gattStatus)
             }
-            scope.launch { peripheralCallback.onConnectionUpdated(this@BluetoothPeripheral, interval, latency, timeout, gattStatus) }
+            callbackScope.launch { peripheralCallback.onConnectionUpdated(this@BluetoothPeripheral, interval, latency, timeout, gattStatus) }
         }
     }
 
@@ -356,11 +358,11 @@ class BluetoothPeripheral internal constructor(
         when (bondState) {
             BluetoothDevice.BOND_BONDING -> {
                 Timber.d("starting bonding with '%s' (%s)", name, address)
-                scope.launch { peripheralCallback.onBondingStarted(this@BluetoothPeripheral) }
+                callbackScope.launch { peripheralCallback.onBondingStarted(this@BluetoothPeripheral) }
             }
             BluetoothDevice.BOND_BONDED -> {
                 Timber.d("bonded with '%s' (%s)", name, address)
-                scope.launch { peripheralCallback.onBondingSucceeded(this@BluetoothPeripheral) }
+                callbackScope.launch { peripheralCallback.onBondingSucceeded(this@BluetoothPeripheral) }
 
                 // If bonding was started at connection time, we may still have to discover the services
                 // Also make sure we are not starting a discovery while another one is already in progress
@@ -377,14 +379,14 @@ class BluetoothPeripheral internal constructor(
             BluetoothDevice.BOND_NONE -> {
                 if (previousBondState == BluetoothDevice.BOND_BONDING) {
                     Timber.e("bonding failed for '%s', disconnecting device", name)
-                    scope.launch { peripheralCallback.onBondingFailed(this@BluetoothPeripheral) }
+                    callbackScope.launch { peripheralCallback.onBondingFailed(this@BluetoothPeripheral) }
                 } else {
                     Timber.e("bond lost for '%s'", name)
                     bondLost = true
 
                     // Cancel the discoverServiceRunnable if it is still pending
                     cancelPendingServiceDiscovery()
-                    scope.launch { peripheralCallback.onBondLost(this@BluetoothPeripheral) }
+                    callbackScope.launch { peripheralCallback.onBondLost(this@BluetoothPeripheral) }
                 }
                 disconnect()
             }
@@ -1284,7 +1286,7 @@ class BluetoothPeripheral internal constructor(
                 }
             }
 
-            scope.launch {
+            callbackScope.launch {
                 delay(500)
                 currentResultCallback.onRequestedConnectionPriority(this@BluetoothPeripheral)
                 completedCommand()
