@@ -238,11 +238,10 @@ Note that `onPhyUpdate` will also be called by the Android stack when a connecti
 If you don't call `setPreferredPhy()`, Android seems to pick `PHY_LE_2M` if the peripheral supports Bluetooth 5. So in practice you only need to call `setPreferredPhy` if you want to use `PHY_LE_CODED`.
 
 You can request the current values at any point by calling:
-```java
-public boolean readPhy()
+```kotlin
+suspend fun readPhy(): Phy
 ```
-
-The result will be again delivered on `onPhyUpdate()`
+It will return the current Phy
 
 ## Example application
 
