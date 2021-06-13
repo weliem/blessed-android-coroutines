@@ -160,11 +160,10 @@ To stop observing notifications you call `peripheral.stopObserving(characteristi
 ## Bonding
 BLESSED handles bonding for you and will make sure all bonding variants work smoothly. During the process of bonding, you will be informed of the process via a number of callbacks:
 
-```java
-public void onBondingStarted(final BluetoothPeripheral peripheral)
-public void onBondingSucceeded(final BluetoothPeripheral peripheral)
-public void onBondingFailed(final BluetoothPeripheral peripheral) 
-public void onBondLost(final BluetoothPeripheral peripheral) 
+```kotlin
+peripheral.observeBondState {
+    Timber.i("Bond state is $it")
+}
 ```
 In most cases, the peripheral will initiate bonding either at the time of connection, or when trying to read/write protected characteristics. However, if you want you can also initiate bonding yourself by calling `createBond` on a peripheral. There are two ways to do this:
 * Calling `createBond` when not yet connected to a peripheral. In this case, a connection is made and bonding is requested.
@@ -172,7 +171,7 @@ In most cases, the peripheral will initiate bonding either at the time of connec
 
 It is also possible to remove a bond by calling `removeBond`. Note that this method uses a hidden Android API and may stop working in the future. When calling the `removeBond` method, the peripheral will also disappear from the settings menu on the phone.
 
-Lastly, it is also possible to automatically issue a PIN code when pairing. Use the method `setPinCodeForPeripheral` to register a 6 digit PIN code. Once bonding starts, BLESSED will automatically issue the PIN code and the UI dialog to enter the PIN code will not appear anymore.
+Lastly, it is also possible to automatically issue a PIN code when pairing. Use the method `central.setPinCodeForPeripheral` to register a 6 digit PIN code. Once bonding starts, BLESSED will automatically issue the PIN code and the UI dialog to enter the PIN code will not appear anymore.
 
 ## Requesting a higher MTU to increase throughput
 The default MTU is 23 bytes, which allows you to send and receive byte arrays of MTU - 3 = 20 bytes at a time. The 3 bytes overhead are used by the ATT packet. If your peripheral supports a higher MTU, you can request that by calling:
