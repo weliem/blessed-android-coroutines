@@ -25,7 +25,6 @@ internal class BluetoothHandler private constructor(private val context: Context
         scope.launch(Dispatchers.IO) {
             try {
                 val mtu = peripheral.requestMtu(185)
-
                 Timber.i("MTU is $mtu")
 
                 peripheral.requestConnectionPriority(ConnectionPriority.HIGH)
