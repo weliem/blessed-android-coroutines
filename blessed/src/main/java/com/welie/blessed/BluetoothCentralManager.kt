@@ -60,7 +60,7 @@ class BluetoothCentralManager(private val context: Context) {
     private val scannedPeripherals: MutableMap<String, BluetoothPeripheral> = ConcurrentHashMap()
     private val reconnectPeripheralAddresses: MutableList<String> = ArrayList()
     private val reconnectCallbacks: MutableMap<String, BluetoothPeripheralCallback?> = ConcurrentHashMap()
-    private var scanPeripheralNames = arrayOfNulls<String>(0)
+    private var scanPeripheralNames = emptyArray<String>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var timeoutRunnable: Runnable? = null
     private var autoConnectRunnable: Runnable? = null
@@ -269,6 +269,7 @@ class BluetoothCentralManager(private val context: Context) {
      * Scan for peripherals that advertise at least one of the specified service UUIDs.
      *
      * @param serviceUUIDs an array of service UUIDs
+     * @throws IllegalArgumentException if the array of service UUIDs is empty
      */
     fun scanForPeripheralsWithServices(serviceUUIDs: Array<UUID>,  resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
         require(serviceUUIDs.isNotEmpty()) { "at least one service UUID  must be supplied" }
@@ -292,9 +293,11 @@ class BluetoothCentralManager(private val context: Context) {
      * Substring matching is used so only a partial peripheral names has to be supplied.
      *
      * @param peripheralNames array of partial peripheral names
+     * @throws IllegalArgumentException if the array of peripheral names is empty
      */
-    fun scanForPeripheralsWithNames(peripheralNames: Array<String?>) {
+    fun scanForPeripheralsWithNames(peripheralNames: Array<String>, resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
         require(peripheralNames.isNotEmpty()) { "at least one peripheral name must be supplied" }
+        currentResultCallback = resultCallback
 
         // Start the scanner with no filter because we'll do the filtering ourselves
         scanPeripheralNames = peripheralNames
@@ -305,9 +308,11 @@ class BluetoothCentralManager(private val context: Context) {
      * Scan for peripherals that have any of the specified peripheral mac addresses.
      *
      * @param peripheralAddresses array of peripheral mac addresses to scan for
+     * @throws IllegalArgumentException if the array of addresses is empty
      */
-    fun scanForPeripheralsWithAddresses(peripheralAddresses: Array<String>) {
+    fun scanForPeripheralsWithAddresses(peripheralAddresses: Array<String>, resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
         require(peripheralAddresses.isNotEmpty()) { "at least one peripheral address must be supplied" }
+        currentResultCallback = resultCallback
 
         val filters: MutableList<ScanFilter> = ArrayList()
         for (address in peripheralAddresses) {
@@ -327,16 +332,20 @@ class BluetoothCentralManager(private val context: Context) {
      * Scan for any peripheral that matches the supplied filters
      *
      * @param filters A list of ScanFilters
+     * @throws IllegalArgumentException if the list of filters is empty
      */
-    fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>) {
+    fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>,resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
         require(filters.isNotEmpty()) { "at least one scan filter must be supplied" }
+
+        currentResultCallback = resultCallback
         startScan(filters, scanSettings, defaultScanCallback)
     }
 
     /**
      * Scan for any peripheral that is advertising.
      */
-    fun scanForPeripherals() {
+    fun scanForPeripherals(resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
+        currentResultCallback = resultCallback
         startScan(emptyList(), scanSettings, defaultScanCallback)
     }
 
@@ -411,12 +420,12 @@ class BluetoothCentralManager(private val context: Context) {
     }
 
 
-    suspend fun connectPeripheral(peripheral: BluetoothPeripheral): Boolean =
+    suspend fun connectPeripheral(peripheral: BluetoothPeripheral): Unit =
         suspendCoroutine {
             try {
                 connectPeripheral(peripheral, object : BluetoothCentralManagerCallback() {
                     override fun onConnectedPeripheral(peripheral: BluetoothPeripheral) {
-                        it.resume(true)
+                        it.resume(Unit)
                     }
 
                     override fun onConnectionFailed(peripheral: BluetoothPeripheral, status: HciStatus) {

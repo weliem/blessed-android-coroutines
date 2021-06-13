@@ -25,6 +25,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         scope.launch(Dispatchers.IO) {
             try {
                 val mtu = peripheral.requestMtu(185)
+
                 Timber.i("MTU is $mtu")
 
                 peripheral.requestConnectionPriority(ConnectionPriority.HIGH)
@@ -33,15 +34,13 @@ internal class BluetoothHandler private constructor(private val context: Context
                 Timber.i("RSSI is $rssi")
 
 
-//                peripheral.getCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID)?.let {
-//                    val manufacturerName = peripheral.readCharacteristic(it).asString()
-//                    Timber.i("Received: $manufacturerName")
-//                }
-//
-//                val model = peripheral.readCharacteristic(DIS_SERVICE_UUID, MODEL_NUMBER_CHARACTERISTIC_UUID).asString()
-//                Timber.i("Received: $model")
+                peripheral.getCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID)?.let {
+                    val manufacturerName = peripheral.readCharacteristic(it).asString()
+                    Timber.i("Received: $manufacturerName")
+                }
 
-                central.cancelConnection(peripheral)
+                val model = peripheral.readCharacteristic(DIS_SERVICE_UUID, MODEL_NUMBER_CHARACTERISTIC_UUID).asString()
+                Timber.i("Received: $model")
 
                 val batteryLevel = peripheral.readCharacteristic(BTS_SERVICE_UUID, BATTERY_LEVEL_CHARACTERISTIC_UUID).asUInt8()
                 Timber.i("Battery level: $batteryLevel")
@@ -217,6 +216,10 @@ internal class BluetoothHandler private constructor(private val context: Context
     }
 
     private fun connectPeripheral(peripheral: BluetoothPeripheral) {
+        peripheral.observeBondState {
+            Timber.i("Bond state is $it")
+        }
+
         scope.launch {
             try {
                 central.connectPeripheral(peripheral)

@@ -45,7 +45,10 @@ enum class BondState(val value: Int) {
      * A shared link keys exists locally for the remote peripheral, so
      * communication can be authenticated and encrypted.
      */
-    BONDED(BluetoothDevice.BOND_BONDED);
+    BONDED(BluetoothDevice.BOND_BONDED),
+
+    BOND_LOST(13),
+    BONDING_FAILED(14);
 
     companion object {
         fun fromValue(value: Int): BondState {

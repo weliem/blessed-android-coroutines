@@ -78,6 +78,7 @@ class BluetoothPeripheral internal constructor(
 
     private val callbackScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var discoverJob: Job? = null
 
     /**
      * Returns the currently set MTU
@@ -112,11 +113,13 @@ class BluetoothPeripheral internal constructor(
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             val gattStatus = GattStatus.fromValue(status)
+
             if (gattStatus != GattStatus.SUCCESS) {
                 Timber.e("service discovery failed due to internal error '%s', disconnecting", gattStatus)
                 disconnect()
                 return
             }
+
             val services = gatt.services
             Timber.i("discovered %d services for '%s'", services.size, name)
 
@@ -127,6 +130,8 @@ class BluetoothPeripheral internal constructor(
         override fun onDescriptorWrite(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
             val gattStatus = GattStatus.fromValue(status)
             val parentCharacteristic = descriptor.characteristic
+            val resultCallback = currentResultCallback
+
             if (gattStatus != GattStatus.SUCCESS) {
                 Timber.e(
                     "failed to write <%s> to descriptor of characteristic <%s> for device: '%s', status '%s' ",
@@ -148,9 +153,9 @@ class BluetoothPeripheral internal constructor(
                         notifyingCharacteristics.remove(parentCharacteristic)
                     }
                 }
-                callbackScope.launch { currentResultCallback.onNotificationStateUpdate(this@BluetoothPeripheral, parentCharacteristic, gattStatus) }
+                callbackScope.launch { resultCallback.onNotificationStateUpdate(this@BluetoothPeripheral, parentCharacteristic, gattStatus) }
             } else {
-                callbackScope.launch { currentResultCallback.onDescriptorWrite(this@BluetoothPeripheral, currentWriteBytes, descriptor, gattStatus) }
+                callbackScope.launch { resultCallback.onDescriptorWrite(this@BluetoothPeripheral, currentWriteBytes, descriptor, gattStatus) }
             }
             completedCommand()
         }
@@ -162,7 +167,8 @@ class BluetoothPeripheral internal constructor(
             }
 
             val value = nonnullOf(descriptor.value)
-            callbackScope.launch { currentResultCallback.onDescriptorRead(this@BluetoothPeripheral, value, descriptor, gattStatus) }
+            val resultCallback = currentResultCallback
+            callbackScope.launch { resultCallback.onDescriptorRead(this@BluetoothPeripheral, value, descriptor, gattStatus) }
             completedCommand()
         }
 
@@ -178,7 +184,8 @@ class BluetoothPeripheral internal constructor(
             }
 
             val value = nonnullOf(characteristic.value)
-            callbackScope.launch { currentResultCallback.onCharacteristicRead(this@BluetoothPeripheral, value, characteristic, gattStatus) }
+            val resultCallback = currentResultCallback
+            callbackScope.launch { resultCallback.onCharacteristicRead(this@BluetoothPeripheral, value, characteristic, gattStatus) }
             completedCommand()
         }
 
@@ -190,7 +197,8 @@ class BluetoothPeripheral internal constructor(
 
             val value = currentWriteBytes
             currentWriteBytes = ByteArray(0)
-            callbackScope.launch { currentResultCallback.onCharacteristicWrite(this@BluetoothPeripheral, value, characteristic, gattStatus) }
+            val resultCallback = currentResultCallback
+            callbackScope.launch { resultCallback.onCharacteristicWrite(this@BluetoothPeripheral, value, characteristic, gattStatus) }
             completedCommand()
         }
 
@@ -200,7 +208,8 @@ class BluetoothPeripheral internal constructor(
                 Timber.e("reading RSSI failed, status '%s'", gattStatus)
             }
 
-            callbackScope.launch { currentResultCallback.onReadRemoteRssi(this@BluetoothPeripheral, rssi, gattStatus) }
+            val resultCallback = currentResultCallback
+            callbackScope.launch { resultCallback.onReadRemoteRssi(this@BluetoothPeripheral, rssi, gattStatus) }
             completedCommand()
         }
 
@@ -211,7 +220,8 @@ class BluetoothPeripheral internal constructor(
             }
 
             currentMtu = mtu
-            callbackScope.launch { currentResultCallback.onMtuChanged(this@BluetoothPeripheral, mtu, gattStatus) }
+            val resultCallback = currentResultCallback
+            callbackScope.launch { resultCallback.onMtuChanged(this@BluetoothPeripheral, mtu, gattStatus) }
 
             // Only complete the command if we initiated the operation. It can also be initiated by the remote peripheral...
             if (currentCommand == REQUEST_MTU_COMMAND) {
@@ -227,7 +237,9 @@ class BluetoothPeripheral internal constructor(
             } else {
                 Timber.i("updated Phy: tx = %s, rx = %s", PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy))
             }
-            callbackScope.launch { currentResultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy), gattStatus) }
+
+            val resultCallback = currentResultCallback
+            callbackScope.launch { resultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy), gattStatus) }
             completedCommand()
         }
 
@@ -238,7 +250,9 @@ class BluetoothPeripheral internal constructor(
             } else {
                 Timber.i("updated Phy: tx = %s, rx = %s", PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy))
             }
-            callbackScope.launch { currentResultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy), gattStatus) }
+
+            val resultCallback = currentResultCallback
+            callbackScope.launch { resultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy), gattStatus) }
         }
 
         /**
@@ -260,15 +274,15 @@ class BluetoothPeripheral internal constructor(
         val bondstate = bondState
         val timePassed = SystemClock.elapsedRealtime() - connectTimestamp
         Timber.i("connected to '%s' (%s) in %.1fs", name, bondstate, timePassed / 1000.0f)
+
         if (bondstate == BondState.NONE || bondstate == BondState.BONDED) {
             discoverServices()
         } else if (bondstate == BondState.BONDING) {
-            // Apparently the bonding process has already started, so let it complete. We'll do discoverServices once bonding finished
+            // Apparently the bonding process has already started, so let it complete.
+            // We'll do discoverServices() when bonding finishes
             Timber.i("waiting for bonding to complete")
         }
     }
-
-    private var discoverJob: Job? = null
 
     private fun discoverServices() {
         discoverJob = scope.launch {
@@ -358,11 +372,11 @@ class BluetoothPeripheral internal constructor(
         when (bondState) {
             BluetoothDevice.BOND_BONDING -> {
                 Timber.d("starting bonding with '%s' (%s)", name, address)
-                callbackScope.launch { peripheralCallback.onBondingStarted(this@BluetoothPeripheral) }
+                callbackScope.launch { bondStateCallback.invoke(BondState.fromValue(bondState)) }
             }
             BluetoothDevice.BOND_BONDED -> {
                 Timber.d("bonded with '%s' (%s)", name, address)
-                callbackScope.launch { peripheralCallback.onBondingSucceeded(this@BluetoothPeripheral) }
+                callbackScope.launch { bondStateCallback.invoke(BondState.fromValue(bondState)) }
 
                 // If bonding was started at connection time, we may still have to discover the services
                 // Also make sure we are not starting a discovery while another one is already in progress
@@ -379,14 +393,15 @@ class BluetoothPeripheral internal constructor(
             BluetoothDevice.BOND_NONE -> {
                 if (previousBondState == BluetoothDevice.BOND_BONDING) {
                     Timber.e("bonding failed for '%s', disconnecting device", name)
-                    callbackScope.launch { peripheralCallback.onBondingFailed(this@BluetoothPeripheral) }
+                    callbackScope.launch { bondStateCallback.invoke(BondState.BONDING_FAILED) }
+
                 } else {
                     Timber.e("bond lost for '%s'", name)
                     bondLost = true
 
                     // Cancel the discoverServiceRunnable if it is still pending
                     cancelPendingServiceDiscovery()
-                    callbackScope.launch { peripheralCallback.onBondLost(this@BluetoothPeripheral) }
+                    callbackScope.launch { bondStateCallback.invoke(BondState.BOND_LOST) }
                 }
                 disconnect()
             }
@@ -625,6 +640,12 @@ class BluetoothPeripheral internal constructor(
      */
     val bondState: BondState
         get() = BondState.fromValue(device.bondState)
+
+    var bondStateCallback: (state: BondState) -> Unit = {}
+
+    fun observeBondState(callback: (state: BondState) -> Unit) {
+        this.bondStateCallback = callback
+    }
 
     /**
      * Get the services supported by the connected bluetooth peripheral.
