@@ -7,6 +7,20 @@ BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and h
 
 ## Installation
 
+This library is available on Jitpack. Include the following in your gradle file:
+
+```groovy
+allprojects {
+    repositories {
+        ...
+        maven { url 'https://jitpack.io' }
+    }
+}
+
+dependencies {
+        implementation 'com.github.weliem:blessed-android-coroutines:0.0.1'
+}
+```
 
 ## Overview of classes
 
