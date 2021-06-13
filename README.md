@@ -177,20 +177,14 @@ Lastly, it is also possible to automatically issue a PIN code when pairing. Use 
 ## Requesting a higher MTU to increase throughput
 The default MTU is 23 bytes, which allows you to send and receive byte arrays of MTU - 3 = 20 bytes at a time. The 3 bytes overhead are used by the ATT packet. If your peripheral supports a higher MTU, you can request that by calling:
 
-```java
-public void requestMtu(int mtu)
+```kotlin
+val mtu = peripheral.requestMtu(185)
 ```
 
-You will get a callback on:
-
-```java
-public void onMtuChanged(BluetoothPeripheral peripheral, int mtu, GattStatus status)
-```
-
-This callback will tell you what the negotiated MTU value is. Note that you may not get the value you requested if the peripheral doesn't accept your offer.
+The method will return the negotiated MTU value. Note that you may not get the value you requested if the peripheral doesn't accept your offer.
 If you simply want the highest possible MTU, you can call `peripheral.requestMtu(BluetoothPeripheral.MAX_MTU)` and that will lead to receiving the highest possible MTU your peripheral supports.
 
-Once the MTU has been set, you can always access it by calling `getCurrentMtu()`. If you want to know the maximum length of the byte arrays that you can write, you can call the method `getMaximumWriteValueLength()`. Note that the maximum value depends on the write type you want to use.
+Once the MTU has been set, you can always access it by calling `peripheral.currentMtu`. If you want to know the maximum length of the byte arrays that you can write, you can call the method `peripheral.getMaximumWriteValueLength()`. Note that the maximum value depends on the write type you want to use.
 
 ## Long reads and writes
 The library also supports so called 'long reads/writes'. You don't need to do anything special for them. Just read a characteristic or descriptor as you normally do, and if the characteristic's value is longer than MTU - 1, then a series of reads will be done by the Android BLE stack. But you will simply receive the 'long' characteristic value in the same way as normal reads. 
