@@ -1365,14 +1365,33 @@ class BluetoothPeripheral internal constructor(
     }
 
     /**
+     * Read the current transmitter PHY and receiver PHY of the connection.
+     *
+     * @return Phy object with the current values
+     */
+    suspend fun readPhy(): Phy =
+        suspendCoroutine {
+            readPhy(object : BluetoothPeripheralCallback() {
+                override fun onPhyUpdate(peripheral: BluetoothPeripheral, txPhy: PhyType, rxPhy: PhyType, status: GattStatus) {
+                    if(status == GattStatus.SUCCESS) {
+                        it.resume(Phy(txPhy, rxPhy))
+                    } else {
+                        it.resumeWithException(GattException(status))
+                    }
+                }
+            })
+        }
+
+    /**
      * Read the current transmitter PHY and receiver PHY of the connection. The values are returned
      * in [BluetoothPeripheralCallback.onPhyUpdate]
      */
-    fun readPhy(): Boolean {
+    private fun readPhy(resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
         val result = commandQueue.add(Runnable {
             if (isConnected) {
+                currentResultCallback = resultCallback
                 bluetoothGatt?.readPhy()
                 Timber.d("reading Phy")
                 return@Runnable
@@ -1380,6 +1399,7 @@ class BluetoothPeripheral internal constructor(
                 completedCommand()
             }
         })
+
         if (result) {
             nextCommand()
         } else {

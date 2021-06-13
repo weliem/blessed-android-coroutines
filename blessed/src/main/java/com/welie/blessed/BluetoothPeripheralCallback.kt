@@ -160,7 +160,7 @@ abstract class BluetoothPeripheralCallback {
      * @param rxPhy the receiver PHY in use
      * @param status GATT status code
      */
-    fun onPhyUpdate(peripheral: BluetoothPeripheral, txPhy: PhyType, rxPhy: PhyType, status: GattStatus) {}
+    open fun onPhyUpdate(peripheral: BluetoothPeripheral, txPhy: PhyType, rxPhy: PhyType, status: GattStatus) {}
 
     /**
      * Callback invoked when the connection parameters are updated.

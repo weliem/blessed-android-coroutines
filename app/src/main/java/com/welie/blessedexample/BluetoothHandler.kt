@@ -33,7 +33,6 @@ internal class BluetoothHandler private constructor(private val context: Context
                 val rssi = peripheral.readRemoteRssi()
                 Timber.i("RSSI is $rssi")
 
-
                 peripheral.getCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID)?.let {
                     val manufacturerName = peripheral.readCharacteristic(it).asString()
                     Timber.i("Received: $manufacturerName")
