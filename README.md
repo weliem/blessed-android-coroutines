@@ -3,7 +3,12 @@
 [![](https://jitpack.io/v/weliem/blessed-android.svg)](https://jitpack.io/#weliem/blessed-android)
 [![Android Build](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml/badge.svg)](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml)
 
-BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and higher, that makes working with BLE on Android very easy. It is powered by Kotlin's **Coroutines** and turns asynchronous methods into synchronous methods!
+BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and higher, that makes working with BLE on Android very easy. It is powered by Kotlin's **Coroutines** and turns asynchronous methods into synchronous methods! It is based on the [Blessed](https://github.com/weliem/blessed-android) Java library and has been rewritten in Kotlin using Coroutines.
+
+## Installation
+
+
+## Overview of classes
 
 The library consists of 5 core classes and corresponding callback abstract classes:
 1. `BluetoothCentralManager`, for scanning and connecting peripherals
@@ -22,70 +27,77 @@ The `BluetoothBytesParser` class is a utility class that makes parsing byte arra
 
 The `BluetoothCentralManager` class has several differrent scanning methods:
 
-```java
-public void scanForPeripherals()
-public void scanForPeripheralsWithServices(UUID[] serviceUUIDs)
-public void scanForPeripheralsWithNames(String[] peripheralNames)
-public void scanForPeripheralsWithAddresses(String[] peripheralAddresses)
-public void scanForPeripheralsUsingFilters(List<ScanFilter> filters)
+```kotlin
+fun scanForPeripherals()
+fun scanForPeripheralsWithServices(serviceUUIDs: Array<UUID>)
+fun scanForPeripheralsWithNames(peripheralNames: Array<String>)
+fun scanForPeripheralsWithAddresses(peripheralAddresses: Array<String>)
+fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>)
 ```
 
-They all work in the same way and take an array of either service UUIDs, peripheral names or mac addresses. When a peripheral is found you will get a callback on `onDiscoveredPeripheral` with the `BluetoothPeripheral` object and a `ScanResult` object that contains the scan details. So in order to setup a scan for a device with the Bloodpressure service and connect to it, you do:
+They all work in the same way and take an array of either service UUIDs, peripheral names or mac addresses. When a peripheral is found your callback lambda will be called with the `BluetoothPeripheral` object and a `ScanResult` object that contains the scan details. The method `scanForPeripheralsUsingFilters` is for scanning using your own list of filters. See [Android documentation](https://developer.android.com/reference/android/bluetooth/le/ScanFilter) for more info on the use of `ScanFilter`. 
 
-```java
-private final BluetoothCentralManagerCallback bluetoothCentralManagerCallback = new BluetoothCentralManagerCallback() {
-        @Override
-        public void onDiscoveredPeripheral(BluetoothPeripheral peripheral, ScanResult scanResult) {
-            central.stopScan();
-            central.connectPeripheral(peripheral, peripheralCallback);
-        }
-};
+So in order to setup a scan for a device with the Bloodpressure service or HeartRate service, you do:
 
-// Create BluetoothCentral and receive callbacks on the main thread
-BluetoothCentralManager central = BluetoothCentralManager(getApplicationContext(), bluetoothCentralManagerCallback, new Handler(Looper.getMainLooper()));
+```kotlin
 
-// Define blood pressure service UUID
-UUID BLOODPRESSURE_SERVICE_UUID = UUID.fromString("00001810-0000-1000-8000-00805f9b34fb");
+val BLP_SERVICE_UUID = UUID.fromString("00001810-0000-1000-8000-00805f9b34fb")
+val HRS_SERVICE_UUID = UUID.fromString("0000180D-0000-1000-8000-00805f9b34fb")
 
-// Scan for peripherals with a certain service UUID
-central.scanForPeripheralsWithServices(new UUID[]{BLOODPRESSURE_SERVICE_UUID});
+central.scanForPeripheralsWithServices(arrayOf(BLP_SERVICE_UUID, HRS_SERVICE_UUID)) { peripheral, scanResult ->
+    Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
+    central.stopScan()
+    connectPeripheral(peripheral)
+}
 ```
+
+The scanning functions are not suspending functions and simply use a lambda function to receive the results.
+
 **Note** Only 1 of these 4 types of scans can be active at one time! So call `stopScan()` before calling another scan.
 
-The method `scanForPeripheralsUsingFilters` is for scanning using your own list of filters. See Android documentation for more info on the use of ScanFilters.
+
 
 ## Connecting to devices
 
 There are 3 ways to connect to a device:
-```java
-public void connectPeripheral(BluetoothPeripheral peripheral, BluetoothPeripheralCallback peripheralCallback)
-public void autoConnectPeripheral(BluetoothPeripheral peripheral, BluetoothPeripheralCallback peripheralCallback)
-public void autoConnectPeripheralsBatch(Map<BluetoothPeripheral, BluetoothPeripheralCallback> batch) 
+```kotlin
+suspend fun connectPeripheral(peripheral: BluetoothPeripheral): Unit
+fun autoConnectPeripheral(peripheral: BluetoothPeripheral)
 ```
 
-The method `connectPeripheral` will try to immediately connect to a device that has already been found using a scan. This method will time out after 30 seconds or less depending on the device manufacturer. Note that there can be **only 1 outstanding** `connectPeripheral`. So if it is called multiple times only 1 will succeed.
+The method `connectPeripheral` is a **suspending function** will try to immediately connect to a device that has already been found using a scan. This method will time out after 30 seconds or less, depending on the device manufacturer, and a `ConnectionFailedException` will be thrown. Note that there can be **only 1 outstanding** `connectPeripheral`. So if it is called multiple times only 1 will succeed.
 
-The method `autoConnectPeripheral` is for re-connecting to known devices for which you already know the device's mac address. The BLE stack will automatically connect to the device when it sees it in its internal scan. Therefore, it may take longer to connect to a device but this call will never time out! So you can issue the autoConnect command and the device will be connected whenever it is found. This call will **also work** when the device is not cached by the Android stack, as BLESSED takes care of it! In contrary to `connectPeripheral`, there can be multiple outstanding `autoConnectPeripheral` requests.
+```kotlin
+scope.launch {
+    try {
+        central.connectPeripheral(peripheral)
+    } catch (connectionFailed: ConnectionFailedException) {
+        Timber.e("connection failed")
+    }
+}
+```
+
+The method `autoConnectPeripheral` will **not suspend** and is for re-connecting to known devices for which you already know the device's mac address. The BLE stack will automatically connect to the device when it sees it in its internal scan. Therefore, it may take longer to connect to a device but this call will never time out! So you can issue the autoConnect command and the device will be connected whenever it is found. This call will **also work** when the device is not cached by the Android stack, as BLESSED takes care of it! In contrary to `connectPeripheral`, there can be multiple outstanding `autoConnectPeripheral` requests.
 
 The method `autoConnectPeripheralsBatch` is for re-connecting to multiple peripherals in one go. Since the normal `autoConnectPeripheral` may involve scanning, if peripherals are uncached, it is not suitable for calling very fast after each other, since it may trigger scanner limitations of Android. So use `autoConnectPeripheralsBatch` if the want to re-connect to many known peripherals.
 
 If you know the mac address of your peripheral you can obtain a `BluetoothPeripheral` object using:
-```java
-BluetoothPeripheral peripheral = central.getPeripheral("CF:A9:BA:D9:62:9E");
+```kotlin
+val peripheral = central.getPeripheral("CF:A9:BA:D9:62:9E");
 ```
 
-After issuing a connect call, you will receive one of the following callbacks:
-```java
-public void onConnectedPeripheral(BluetoothPeripheral peripheral)
-public void onConnectionFailed(BluetoothPeripheral peripheral, HciStatus status)
-public void onDisconnectedPeripheral(BluetoothPeripheral peripheral, HciStatus status)
+After issuing a connect call, you can observe the connection state of peripherals:
+```kotlin
+central.observeConnectionState { peripheral, state ->
+    Timber.i("Peripheral ${peripheral.name} has $state")
+}
 ```
 
 To disconnect or to cancel an outstanding `connectPeripheral()` or `autoConnectPeripheral()`, you call:
-```java
-public void cancelConnection(BluetoothPeripheral peripheral)
+```kotlin
+suspend fun cancelConnection(peripheral: BluetoothPeripheral): Unit
 ```
-In all cases, you will get a callback on `onDisconnectedPeripheral` when the disconnection has been completed.
+The function will suspend untill the peripheral is disconnected. 
 
 ## Service discovery
 
@@ -97,50 +109,53 @@ This callback is the proper place to start enabling notifications or read/write 
 
 ## Reading and writing
 
-Reading and writing to characteristics is done using the following methods:
+Reading and writing to characteristics/descriptors is done using the following methods:
 
 ```kotlin
-fun readCharacteristic(characteristic: BluetoothGattCharacteristic ): ByteArray
-fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, value: ByteArray, writeType: WriteType): ByteArray
+suspend fun readCharacteristic(serviceUUID: UUID, characteristicUUID: UUID): ByteArray
+suspend fun readCharacteristic(characteristic: BluetoothGattCharacteristic): ByteArray
+suspend fun writeCharacteristic(serviceUUID: UUID, characteristicUUID: UUID, value: ByteArray, writeType: WriteType): ByteArray
+suspend fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, value: ByteArray, writeType: WriteType): ByteArray
+
+suspend fun readDescriptor(descriptor: BluetoothGattDescriptor): ByteArray
+suspend fun writeDescriptor(descriptor: BluetoothGattDescriptor, value: ByteArray): ByteArray
 ```
 
-Both methods are **synchronous** and will block until they have completed. The method `readCharacteristic` will return the ByteArray that has been read. It will throw `IllegalArgumentException` if the characteristic you provide is not readable, and it will throw `GattException` if the read was not succesful.
+Both methods are **suspending** and will return the result of the operation. The method `readCharacteristic` will return the ByteArray that has been read. It will throw `IllegalArgumentException` if the characteristic you provide is not readable, and it will throw `GattException` if the read was not succesful.
 
-If you want to write to a characteristic, you need to provide a `value` and a `writeType`. The `writeType` is usually `WITH_RESPONSE` or `WITHOUT_RESPONSE`. If the write type you specify is not supported by the characteristic you will see an error in your log. 
+If you want to write to a characteristic, you need to provide a `value` and a `writeType`. The `writeType` is usually `WITH_RESPONSE` or `WITHOUT_RESPONSE`. If the write type you specify is not supported by the characteristic it will throw `IllegalArgumentException`.
+
+There are 2 ways to specify which characteristic to use in the read/write method:
+- Using its `serviceUUID` and `characteristicUUID`
+- Using the `BluetoothGattCharacteristic` reference directly
+
+For example:
+```kotlin
+peripheral.getCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID)?.let {
+    val manufacturerName = peripheral.readCharacteristic(it).asString()
+    Timber.i("Received: $manufacturerName")
+}
+
+val model = peripheral.readCharacteristic(DIS_SERVICE_UUID, MODEL_NUMBER_CHARACTERISTIC_UUID).asString()
+Timber.i("Received: $model")
+```
+
+Note that there are also some extension like `asString()` and `asUInt8()` to quickly turn byte arrays in Strings or UInt8s.
 
 ## Turning notifications on/off
 
-BLESSED provides a convenience method `setNotify` to turn notifications/indications on or off. It will perform all the necessary operations like writing to the Client Characteristic Configuration descriptor for you. So all you need to do is:
+You can **observe** notifications/indications and receive them in the callback lambda. All the necessary operations like writing to the Client Characteristic Configuration descriptor are handled by Blessed. So all you need to do is:
 
-```java
-
-BluetoothGattCharacteristic currentTimeCharacteristic = peripheral.getCharacteristic(CTS_SERVICE_UUID, CURRENT_TIME_CHARACTERISTIC_UUID);
-if (currentTimeCharacteristic != null) {
-     peripheral.setNotify(currentTimeCharacteristic, true);
+```kotlin
+peripheral.getCharacteristic(BLP_SERVICE_UUID, BLOOD_PRESSURE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
+    peripheral.observe(it) { value ->
+        val measurement = BloodPressureMeasurement.fromBytes(value)
+        ...
+    }
 }
 ```
 
-Since this is an asynchronous operation you will receive a callback that indicates success or failure. You can use the method `isNotifying` to check if the characteristic is currently notifying or not:
-
-```java
-@Override
-public void onNotificationStateUpdate(BluetoothPeripheral peripheral, BluetoothGattCharacteristic characteristic, GattStatus status) {
-     if (status == GattStatus.SUCCESS) {
-          if(peripheral.isNotifying(characteristic)) {
-               Log.i(TAG, String.format("SUCCESS: Notify set to 'on' for %s", characteristic.getUuid()));
-          } else {
-               Log.i(TAG, String.format("SUCCESS: Notify set to 'off' for %s", characteristic.getUuid()));
-          }
-     } else {
-          Log.e(TAG, String.format("ERROR: Changing notification state failed for %s", characteristic.getUuid()));
-     }
-}
-```
-When notifications arrive, you will receive a callback on:
-
-```java
-public void onCharacteristicUpdate(BluetoothPeripheral peripheral, byte[] value, BluetoothGattCharacteristic characteristic, GattStatus status)
-```
+To stop observing notifications you call `peripheral.stopObserving(characteristic: BluetoothGattCharacteristic)`
 
 ## Bonding
 BLESSED handles bonding for you and will make sure all bonding variants work smoothly. During the process of bonding, you will be informed of the process via a number of callbacks:
@@ -162,20 +177,14 @@ Lastly, it is also possible to automatically issue a PIN code when pairing. Use 
 ## Requesting a higher MTU to increase throughput
 The default MTU is 23 bytes, which allows you to send and receive byte arrays of MTU - 3 = 20 bytes at a time. The 3 bytes overhead are used by the ATT packet. If your peripheral supports a higher MTU, you can request that by calling:
 
-```java
-public void requestMtu(int mtu)
+```kotlin
+val mtu = peripheral.requestMtu(185)
 ```
 
-You will get a callback on:
-
-```java
-public void onMtuChanged(BluetoothPeripheral peripheral, int mtu, GattStatus status)
-```
-
-This callback will tell you what the negotiated MTU value is. Note that you may not get the value you requested if the peripheral doesn't accept your offer.
+The method will return the negotiated MTU value. Note that you may not get the value you requested if the peripheral doesn't accept your offer.
 If you simply want the highest possible MTU, you can call `peripheral.requestMtu(BluetoothPeripheral.MAX_MTU)` and that will lead to receiving the highest possible MTU your peripheral supports.
 
-Once the MTU has been set, you can always access it by calling `getCurrentMtu()`. If you want to know the maximum length of the byte arrays that you can write, you can call the method `getMaximumWriteValueLength()`. Note that the maximum value depends on the write type you want to use.
+Once the MTU has been set, you can always access it by calling `peripheral.currentMtu`. If you want to know the maximum length of the byte arrays that you can write, you can call the method `peripheral.getMaximumWriteValueLength()`. Note that the maximum value depends on the write type you want to use.
 
 ## Long reads and writes
 The library also supports so called 'long reads/writes'. You don't need to do anything special for them. Just read a characteristic or descriptor as you normally do, and if the characteristic's value is longer than MTU - 1, then a series of reads will be done by the Android BLE stack. But you will simply receive the 'long' characteristic value in the same way as normal reads. 
