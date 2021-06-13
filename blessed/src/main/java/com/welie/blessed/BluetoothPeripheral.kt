@@ -1330,25 +1330,35 @@ class BluetoothPeripheral internal constructor(
      * recommendation, whether the PHY change will happen depends on other applications preferences,
      * local and remote controller capabilities. Controller can override these settings.
      *
-     *
-     * [BluetoothPeripheralCallback.onPhyUpdate] will be triggered as a result of this call, even
-     * if no PHY change happens. It is also triggered when remote device updates the PHY.
-     *
      * @param txPhy      the desired TX PHY
      * @param rxPhy      the desired RX PHY
      * @param phyOptions the desired optional sub-type for PHY_LE_CODED
-     * @return true if request was enqueued, false if not
+     * @return the resulting Phy after negotiating with Peripheral
      */
-    fun setPreferredPhy(txPhy: PhyType, rxPhy: PhyType, phyOptions: PhyOptions): Boolean {
-
-        if (notConnected()) {
-            Timber.e(PERIPHERAL_NOT_CONNECTED)
-            return false
+    suspend fun setPreferredPhy(txPhy: PhyType, rxPhy: PhyType, phyOptions: PhyOptions): Phy =
+        suspendCoroutine {
+            val result = setPreferredPhy(txPhy, rxPhy, phyOptions, object: BluetoothPeripheralCallback() {
+                override fun onPhyUpdate(peripheral: BluetoothPeripheral, txPhy: PhyType, rxPhy: PhyType, status: GattStatus) {
+                    if (status == GattStatus.SUCCESS) {
+                        it.resume(Phy(txPhy, rxPhy))
+                    } else {
+                        it.resumeWithException(GattException(status))
+                    }
+                }
+            })
+            if (!result) {
+                it.resumeWithException(IllegalStateException("could not execute operation"))
+            }
         }
+
+
+    fun setPreferredPhy(txPhy: PhyType, rxPhy: PhyType, phyOptions: PhyOptions, resultCallback: BluetoothPeripheralCallback): Boolean {
+        require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
         val result = commandQueue.add(Runnable {
             if (isConnected) {
                 Timber.i("setting preferred Phy: tx = %s, rx = %s, options = %s", txPhy, rxPhy, phyOptions)
+                currentResultCallback = resultCallback
                 bluetoothGatt?.setPreferredPhy(txPhy.mask, rxPhy.mask, phyOptions.value)
             }
 
