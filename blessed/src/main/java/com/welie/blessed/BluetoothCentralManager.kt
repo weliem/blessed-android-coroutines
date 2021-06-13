@@ -159,7 +159,10 @@ class BluetoothCentralManager(private val context: Context) {
             unconnectedPeripherals.remove(peripheral.address)
             scannedPeripherals.remove(peripheral.address)
             connectedPeripherals[peripheral.address] = peripheral
-            scope.launch { currentCentralManagerCallback.onConnectedPeripheral(peripheral) }
+            scope.launch {
+                currentCentralManagerCallback.onConnectedPeripheral(peripheral)
+                currentCentralManagerCallback = BluetoothCentralManagerCallback.NULL()
+            }
             scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.CONNECTED)}
         }
 
@@ -182,7 +185,10 @@ class BluetoothCentralManager(private val context: Context) {
             } else {
                 Timber.i("connection to '%s' (%s) failed", peripheral.name, peripheral.address)
                 connectionRetries.remove(peripheral.address)
-                scope.launch { currentCentralManagerCallback.onConnectionFailed(peripheral, status) }
+                scope.launch {
+                    currentCentralManagerCallback.onConnectionFailed(peripheral, status)
+                    currentCentralManagerCallback = BluetoothCentralManagerCallback.NULL()
+                }
                 scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED)}
             }
         }
@@ -196,8 +202,11 @@ class BluetoothCentralManager(private val context: Context) {
             unconnectedPeripherals.remove(peripheral.address)
             scannedPeripherals.remove(peripheral.address)
             connectionRetries.remove(peripheral.address)
-            scope.launch { currentCentralManagerCallback.onDisconnectedPeripheral(peripheral, status) }
-            scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED)}
+            scope.launch {
+                currentCentralManagerCallback.onDisconnectedPeripheral(peripheral, status)
+                currentCentralManagerCallback = BluetoothCentralManagerCallback.NULL()
+            }
+            scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED) }
         }
 
         override fun getPincode(peripheral: BluetoothPeripheral): String? {
@@ -404,15 +413,19 @@ class BluetoothCentralManager(private val context: Context) {
 
     suspend fun connectPeripheral(peripheral: BluetoothPeripheral): Boolean =
         suspendCoroutine {
-            connectPeripheral(peripheral, object : BluetoothCentralManagerCallback() {
-                override fun onConnectedPeripheral(peripheral: BluetoothPeripheral) {
-                    it.resume(true)
-                }
+            try {
+                connectPeripheral(peripheral, object : BluetoothCentralManagerCallback() {
+                    override fun onConnectedPeripheral(peripheral: BluetoothPeripheral) {
+                        it.resume(true)
+                    }
 
-                override fun onConnectionFailed(peripheral: BluetoothPeripheral, status: HciStatus) {
-                    it.resumeWithException(ConnectionFailedException(status))
-                }
-            })
+                    override fun onConnectionFailed(peripheral: BluetoothPeripheral, status: HciStatus) {
+                        it.resumeWithException(ConnectionFailedException(status))
+                    }
+                })
+            } catch (failedException: ConnectionFailedException) {
+                it.resumeWithException(failedException)
+            }
         }
 
     /**
@@ -421,16 +434,9 @@ class BluetoothCentralManager(private val context: Context) {
      *
      * @param peripheral BLE peripheral to connect with
      */
-    fun connectPeripheral(peripheral: BluetoothPeripheral, resultCentralManagerCallback: BluetoothCentralManagerCallback) {
+    private fun connectPeripheral(peripheral: BluetoothPeripheral, resultCentralManagerCallback: BluetoothCentralManagerCallback) {
         synchronized(connectLock) {
-            if (connectedPeripherals.containsKey(peripheral.address)) {
-                Timber.w("already connected to %s'", peripheral.address)
-                return
-            }
-            if (unconnectedPeripherals.containsKey(peripheral.address)) {
-                Timber.w("already connecting to %s'", peripheral.address)
-                return
-            }
+            checkPeripheralStatus(peripheral)
 
             // Check if the peripheral is cached or not. If not, issue a warning because connection may fail
             // This is because Android will guess the address type and when incorrect it will fail
@@ -452,15 +458,7 @@ class BluetoothCentralManager(private val context: Context) {
      */
     fun autoConnectPeripheral(peripheral: BluetoothPeripheral) {
         synchronized(connectLock) {
-
-            if (connectedPeripherals.containsKey(peripheral.address)) {
-                Timber.w("already connected to %s'", peripheral.address)
-                return
-            }
-            if (unconnectedPeripherals[peripheral.address] != null) {
-                Timber.w("already issued autoconnect for '%s' ", peripheral.address)
-                return
-            }
+            checkPeripheralStatus(peripheral)
 
             // Check if the peripheral is uncached and start autoConnectPeripheralByScan
             if (peripheral.isUncached) {
@@ -470,14 +468,28 @@ class BluetoothCentralManager(private val context: Context) {
                 autoConnectPeripheralByScan(peripheral.address, NULL())
                 return
             }
-            if (peripheral.type == PeripheralType.CLASSIC) {
-                Timber.e("peripheral does not support Bluetooth LE")
-                return
-            }
+
             peripheral.peripheralCallback = NULL()
             scannedPeripherals.remove(peripheral.address)
             unconnectedPeripherals[peripheral.address] = peripheral
             peripheral.autoConnect()
+        }
+    }
+
+    private fun checkPeripheralStatus(peripheral: BluetoothPeripheral) {
+        if (connectedPeripherals.containsKey(peripheral.address)) {
+            Timber.e("already connected to %s'", peripheral.address)
+            throw ConnectionFailedException(HciStatus.CONNECTION_ALREADY_EXISTS)
+        }
+
+        if (unconnectedPeripherals.containsKey(peripheral.address)) {
+            Timber.e("already issued autoconnect for '%s' ", peripheral.address)
+            throw ConnectionFailedException(HciStatus.COMMAND_DISALLOWED)
+        }
+
+        if (peripheral.type == PeripheralType.CLASSIC) {
+            Timber.e("peripheral does not support Bluetooth LE")
+            throw ConnectionFailedException(HciStatus.UNSUPPORTED_PARAMETER_VALUE)
         }
     }
 
@@ -491,12 +503,20 @@ class BluetoothCentralManager(private val context: Context) {
         scanForAutoConnectPeripherals()
     }
 
+    suspend fun cancelConnection(peripheral: BluetoothPeripheral): Unit =
+        suspendCoroutine {
+            cancelConnection(peripheral, object : BluetoothCentralManagerCallback() {
+                override fun onDisconnectedPeripheral(peripheral: BluetoothPeripheral, status: HciStatus) {
+                    it.resume(Unit)
+                }
+            })
+        }
     /**
      * Cancel an active or pending connection for a peripheral.
      *
      * @param peripheral the peripheral
      */
-    fun cancelConnection(peripheral: BluetoothPeripheral) {
+    fun cancelConnection(peripheral: BluetoothPeripheral, resultCentralManagerCallback: BluetoothCentralManagerCallback) {
         // First check if we are doing a reconnection scan for this peripheral
         val peripheralAddress = peripheral.address
         if (reconnectPeripheralAddresses.contains(peripheralAddress)) {
@@ -505,8 +525,8 @@ class BluetoothCentralManager(private val context: Context) {
             unconnectedPeripherals.remove(peripheralAddress)
             stopAutoconnectScan()
             Timber.d("cancelling autoconnect for %s", peripheralAddress)
-            //scope.launch { bluetoothCentralManagerCallback.onDisconnectedPeripheral(peripheral, HciStatus.SUCCESS) }
-            scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED) }
+            scope.launch { resultCentralManagerCallback.onDisconnectedPeripheral(peripheral, HciStatus.SUCCESS) }
+           // scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED) }
 
             // If there are any devices left, restart the reconnection scan
             if (reconnectPeripheralAddresses.size > 0) {
@@ -515,11 +535,13 @@ class BluetoothCentralManager(private val context: Context) {
             return
         }
 
-        // Only cancel connectioins if it is an known peripheral
+        // Only cancel connections if it is an known peripheral
         if (unconnectedPeripherals.containsKey(peripheralAddress) || connectedPeripherals.containsKey(peripheralAddress)) {
+            currentCentralManagerCallback = resultCentralManagerCallback
             peripheral.cancelConnection()
         } else {
             Timber.e("cannot cancel connection to unknown peripheral %s", peripheralAddress)
+            throw IllegalArgumentException("tyring to disconnect peripheral outside of library")
         }
     }
 

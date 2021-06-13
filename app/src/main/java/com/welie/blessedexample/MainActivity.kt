@@ -14,7 +14,6 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.welie.blessed.BluetoothPeripheral
 import com.welie.blessedexample.BluetoothHandler.Companion.getInstance
-import com.welie.blessedexample.MainActivity
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.consumeAsFlow
@@ -234,9 +233,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun areLocationServicesEnabled(): Boolean {
         val locationManager = applicationContext.getSystemService(LOCATION_SERVICE) as LocationManager
-        val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-        val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-        return isGpsEnabled || isNetworkEnabled
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return locationManager.isLocationEnabled
+        } else {
+            val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+            val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+            return isGpsEnabled || isNetworkEnabled
+        }
     }
 
     private fun checkLocationServices(): Boolean {

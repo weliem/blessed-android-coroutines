@@ -1,7 +1,6 @@
 package com.welie.blessedexample
 
 import android.content.Context
-import android.content.Intent
 import com.welie.blessed.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -22,7 +21,7 @@ internal class BluetoothHandler private constructor(private val context: Context
     val temperatureChannel = Channel<TemperatureMeasurement>(UNLIMITED)
     val weightChannel = Channel<WeightMeasurement>(UNLIMITED)
 
-    private fun setupPeripheral(peripheral: BluetoothPeripheral) {
+    private fun handlePeripheral(peripheral: BluetoothPeripheral) {
         scope.launch(Dispatchers.IO) {
             try {
                 val mtu = peripheral.requestMtu(185)
@@ -33,13 +32,16 @@ internal class BluetoothHandler private constructor(private val context: Context
                 val rssi = peripheral.readRemoteRssi()
                 Timber.i("RSSI is $rssi")
 
-                peripheral.getCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID)?.let {
-                    val manufacturerName = peripheral.readCharacteristic(it).asString()
-                    Timber.i("Received: $manufacturerName")
-                }
 
-                val model = peripheral.readCharacteristic(DIS_SERVICE_UUID, MODEL_NUMBER_CHARACTERISTIC_UUID).asString()
-                Timber.i("Received: $model")
+//                peripheral.getCharacteristic(DIS_SERVICE_UUID, MANUFACTURER_NAME_CHARACTERISTIC_UUID)?.let {
+//                    val manufacturerName = peripheral.readCharacteristic(it).asString()
+//                    Timber.i("Received: $manufacturerName")
+//                }
+//
+//                val model = peripheral.readCharacteristic(DIS_SERVICE_UUID, MODEL_NUMBER_CHARACTERISTIC_UUID).asString()
+//                Timber.i("Received: $model")
+
+                central.cancelConnection(peripheral)
 
                 val batteryLevel = peripheral.readCharacteristic(BTS_SERVICE_UUID, BATTERY_LEVEL_CHARACTERISTIC_UUID).asUInt8()
                 Timber.i("Battery level: $batteryLevel")
@@ -210,13 +212,16 @@ internal class BluetoothHandler private constructor(private val context: Context
         central.scanForPeripheralsWithServices(supportedServices) { peripheral, scanResult ->
             Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
             central.stopScan()
+            connectPeripheral(peripheral)
+        }
+    }
 
-            scope.launch(Dispatchers.IO) {
-                try {
-                    central.connectPeripheral(peripheral)
-                } catch (connectionFailed: ConnectionFailedException) {
-                    Timber.e("connection failed")
-                }
+    private fun connectPeripheral(peripheral: BluetoothPeripheral) {
+        scope.launch {
+            try {
+                central.connectPeripheral(peripheral)
+            } catch (connectionFailed: ConnectionFailedException) {
+                Timber.e("connection failed")
             }
         }
     }
@@ -289,7 +294,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         central.observeConnectionState { peripheral, state ->
             Timber.i("Peripheral ${peripheral.name} has $state")
             when (state) {
-                ConnectionState.CONNECTED -> setupPeripheral(peripheral)
+                ConnectionState.CONNECTED -> handlePeripheral(peripheral)
                 ConnectionState.DISCONNECTED -> scope.launch {
                     delay(15000)
                     central.autoConnectPeripheral(peripheral)

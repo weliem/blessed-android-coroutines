@@ -508,7 +508,7 @@ class BluetoothPeripheral internal constructor(
      *
      * This operation is asynchronous and you will receive a callback on onDisconnectedPeripheral.
      */
-    fun cancelConnection() {
+    internal fun cancelConnection() {
         // Check if we have a Gatt object
         if (bluetoothGatt == null) {
             Timber.w("cannot cancel connection because no connection attempt is made yet")
@@ -551,7 +551,6 @@ class BluetoothPeripheral internal constructor(
             scope.launch {
                 if (state == BluetoothProfile.STATE_DISCONNECTING && bluetoothGatt != null) {
                     bluetoothGatt!!.disconnect()
-                    Timber.i("force disconnect '%s' (%s)", name, address)
                 }
             }
         } else {
@@ -726,6 +725,8 @@ class BluetoothPeripheral internal constructor(
      * @throws IllegalArgumentException if the characteristic is not readable
      */
     suspend fun readCharacteristic(serviceUUID: UUID, characteristicUUID: UUID): ByteArray {
+        require(isConnected) { PERIPHERAL_NOT_CONNECTED }
+
         val characteristic = getCharacteristic(serviceUUID, characteristicUUID)
         return if (characteristic != null) {
             readCharacteristic(characteristic)
@@ -772,7 +773,7 @@ class BluetoothPeripheral internal constructor(
      */
     private fun readCharacteristic(characteristic: BluetoothGattCharacteristic, resultCallback: BluetoothPeripheralCallback): Boolean {
         require(characteristic.supportsReading()) { "characteristic does not have read property" }
-        if (notConnected()) return false
+        require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
         val result = commandQueue.add(Runnable {
             if (isConnected) {
@@ -798,6 +799,8 @@ class BluetoothPeripheral internal constructor(
 
 
     suspend fun writeCharacteristic(serviceUUID: UUID, characteristicUUID: UUID, value: ByteArray, writeType: WriteType): ByteArray {
+        require(isConnected) { PERIPHERAL_NOT_CONNECTED }
+
         val characteristic = getCharacteristic(serviceUUID, characteristicUUID)
         return if (characteristic != null) {
             writeCharacteristic(characteristic, value, writeType)
