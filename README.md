@@ -1,12 +1,26 @@
 # BLESSED for Android with Coroutines - BLE made easy
 
-[![](https://jitpack.io/v/weliem/blessed-android.svg)](https://jitpack.io/#weliem/blessed-android)
+[![](https://jitpack.io/v/weliem/blessed-android-coroutines.svg)](https://jitpack.io/#weliem/blessed-android-coroutines)
 [![Android Build](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml/badge.svg)](https://github.com/weliem/blessed-android/actions/workflows/gradle.yml)
 
 BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and higher, that makes working with BLE on Android very easy. It is powered by Kotlin's **Coroutines** and turns asynchronous methods into synchronous methods! It is based on the [Blessed](https://github.com/weliem/blessed-android) Java library and has been rewritten in Kotlin using Coroutines.
 
 ## Installation
 
+This library is available on Jitpack. Include the following in your gradle file:
+
+```groovy
+allprojects {
+    repositories {
+        ...
+        maven { url 'https://jitpack.io' }
+    }
+}
+
+dependencies {
+        implementation 'com.github.weliem:blessed-android-coroutines:0.0.1'
+}
+```
 
 ## Overview of classes
 
@@ -160,11 +174,10 @@ To stop observing notifications you call `peripheral.stopObserving(characteristi
 ## Bonding
 BLESSED handles bonding for you and will make sure all bonding variants work smoothly. During the process of bonding, you will be informed of the process via a number of callbacks:
 
-```java
-public void onBondingStarted(final BluetoothPeripheral peripheral)
-public void onBondingSucceeded(final BluetoothPeripheral peripheral)
-public void onBondingFailed(final BluetoothPeripheral peripheral) 
-public void onBondLost(final BluetoothPeripheral peripheral) 
+```kotlin
+peripheral.observeBondState {
+    Timber.i("Bond state is $it")
+}
 ```
 In most cases, the peripheral will initiate bonding either at the time of connection, or when trying to read/write protected characteristics. However, if you want you can also initiate bonding yourself by calling `createBond` on a peripheral. There are two ways to do this:
 * Calling `createBond` when not yet connected to a peripheral. In this case, a connection is made and bonding is requested.
@@ -172,7 +185,7 @@ In most cases, the peripheral will initiate bonding either at the time of connec
 
 It is also possible to remove a bond by calling `removeBond`. Note that this method uses a hidden Android API and may stop working in the future. When calling the `removeBond` method, the peripheral will also disappear from the settings menu on the phone.
 
-Lastly, it is also possible to automatically issue a PIN code when pairing. Use the method `setPinCodeForPeripheral` to register a 6 digit PIN code. Once bonding starts, BLESSED will automatically issue the PIN code and the UI dialog to enter the PIN code will not appear anymore.
+Lastly, it is also possible to automatically issue a PIN code when pairing. Use the method `central.setPinCodeForPeripheral` to register a 6 digit PIN code. Once bonding starts, BLESSED will automatically issue the PIN code and the UI dialog to enter the PIN code will not appear anymore.
 
 ## Requesting a higher MTU to increase throughput
 The default MTU is 23 bytes, which allows you to send and receive byte arrays of MTU - 3 = 20 bytes at a time. The 3 bytes overhead are used by the ATT packet. If your peripheral supports a higher MTU, you can request that by calling:
@@ -204,8 +217,8 @@ The options you can choose are:
 * **LE_CODED**, Coded PHY for long range connections, requires Bluetooth 5.0
 
 You can set a preferred Phy by calling:
-```java
-public boolean setPreferredPhy(PhyType txPhy, PhyType rxPhy, PhyOptions phyOptions)
+```kotlin
+suspend fun setPreferredPhy(txPhy: PhyType, rxPhy: PhyType, phyOptions: PhyOptions): Phy
 ```
 
 By calling `setPreferredPhy()` you indicate what you would like to have but it is not guaranteed that you get what you ask for. That depends on what the peripheral will actually support and give you.
@@ -214,22 +227,16 @@ If you are requesting `LE_CODED` you can also provide PhyOptions which has 3 pos
 * **S2**, for 2x long range
 * **S8**, for 4x long range
     
-The result of this negotiation will be received on:
-
-```java
-public void onPhyUpdate(PhyType txPhy, PhyType rxPhy, GattStatus status)
-```
+The result of this negotiation will be received as a `Phy` object that is returned by `setPrefferedPhy`
 
 As you can see the Phy for sending and receiving can be different but most of the time you will see the same Phy for both.
-Note that `onPhyUpdate` will also be called by the Android stack when a connection is established or when the Phy changes for other reasons.
 If you don't call `setPreferredPhy()`, Android seems to pick `PHY_LE_2M` if the peripheral supports Bluetooth 5. So in practice you only need to call `setPreferredPhy` if you want to use `PHY_LE_CODED`.
 
 You can request the current values at any point by calling:
-```java
-public boolean readPhy()
+```kotlin
+suspend fun readPhy(): Phy
 ```
-
-The result will be again delivered on `onPhyUpdate()`
+It will return the current Phy
 
 ## Example application
 
