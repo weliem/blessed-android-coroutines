@@ -109,13 +109,16 @@ This callback is the proper place to start enabling notifications or read/write 
 
 ## Reading and writing
 
-Reading and writing to characteristics is done using the following methods:
+Reading and writing to characteristics/descriptors is done using the following methods:
 
 ```kotlin
 suspend fun readCharacteristic(serviceUUID: UUID, characteristicUUID: UUID): ByteArray
 suspend fun readCharacteristic(characteristic: BluetoothGattCharacteristic): ByteArray
 suspend fun writeCharacteristic(serviceUUID: UUID, characteristicUUID: UUID, value: ByteArray, writeType: WriteType): ByteArray
 suspend fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, value: ByteArray, writeType: WriteType): ByteArray
+
+suspend fun readDescriptor(descriptor: BluetoothGattDescriptor): ByteArray
+suspend fun writeDescriptor(descriptor: BluetoothGattDescriptor, value: ByteArray): ByteArray
 ```
 
 Both methods are **suspending** and will return the result of the operation. The method `readCharacteristic` will return the ByteArray that has been read. It will throw `IllegalArgumentException` if the characteristic you provide is not readable, and it will throw `GattException` if the read was not succesful.
