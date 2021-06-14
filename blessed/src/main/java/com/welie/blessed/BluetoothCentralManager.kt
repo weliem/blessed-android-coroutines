@@ -80,7 +80,7 @@ class BluetoothCentralManager(private val context: Context) {
             synchronized(this) {
                 val deviceName = result.device.name ?: return
                 for (name in scanPeripheralNames) {
-                    if (deviceName.contains(name!!)) {
+                    if (deviceName.contains(name)) {
                         sendScanResult(result)
                         return
                     }
@@ -534,7 +534,6 @@ class BluetoothCentralManager(private val context: Context) {
             stopAutoconnectScan()
             Timber.d("cancelling autoconnect for %s", peripheralAddress)
             scope.launch { resultCentralManagerCallback.onDisconnectedPeripheral(peripheral, HciStatus.SUCCESS) }
-           // scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED) }
 
             // If there are any devices left, restart the reconnection scan
             if (reconnectPeripheralAddresses.size > 0) {
@@ -916,7 +915,7 @@ class BluetoothCentralManager(private val context: Context) {
         private const val NO_VALID_PERIPHERAL_PROVIDED = "no valid peripheral provided"
         private const val NO_VALID_PERIPHERAL_CALLBACK_SPECIFIED = "no valid peripheral callback specified"
     }
-    //endregion
+
     /**
      * Construct a new BluetoothCentralManager object
      *
