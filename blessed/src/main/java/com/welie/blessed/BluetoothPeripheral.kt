@@ -50,8 +50,7 @@ import kotlin.coroutines.suspendCoroutine
 class BluetoothPeripheral internal constructor(
     private val context: Context,
     private var device: BluetoothDevice,
-    private val listener: InternalCallback,
-    internal var peripheralCallback: BluetoothPeripheralCallback
+    private val listener: InternalCallback
 ) {
     private val commandQueue: Queue<Runnable> = ConcurrentLinkedQueue()
 
@@ -59,7 +58,7 @@ class BluetoothPeripheral internal constructor(
     private var bluetoothGatt: BluetoothGatt? = null
     private var cachedName = ""
     private var currentWriteBytes = ByteArray(0)
-    private var currentCommand = ""
+    private var currentCommand = IDLE
     private var currentResultCallback: BluetoothPeripheralCallback = BluetoothPeripheralCallback.NULL()
     private val notifyingCharacteristics: MutableSet<BluetoothGattCharacteristic> = HashSet()
     private var observeMap: MutableMap<BluetoothGattCharacteristic, (value: ByteArray) -> Unit> = HashMap()
@@ -102,8 +101,8 @@ class BluetoothPeripheral internal constructor(
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> successfullyConnected()
                     BluetoothProfile.STATE_DISCONNECTED -> successfullyDisconnected(previousState)
-                    BluetoothProfile.STATE_DISCONNECTING -> Timber.i("peripheral is disconnecting")
-                    BluetoothProfile.STATE_CONNECTING -> Timber.i("peripheral is connecting")
+                    BluetoothProfile.STATE_DISCONNECTING -> Timber.d("peripheral is disconnecting")
+                    BluetoothProfile.STATE_CONNECTING -> Timber.d("peripheral is connecting")
                     else -> Timber.e("unknown state received")
                 }
             } else {
@@ -120,8 +119,7 @@ class BluetoothPeripheral internal constructor(
                 return
             }
 
-            val services = gatt.services
-            Timber.i("discovered %d services for '%s'", services.size, name)
+            Timber.d("discovered %d services for '%s'", gatt.services.size, name)
 
             // Issue 'connected' since we are now fully connect incl service discovery
             listener.connected(this@BluetoothPeripheral)
@@ -225,7 +223,7 @@ class BluetoothPeripheral internal constructor(
 
             // Only complete the command if we initiated the operation. It can also be initiated by the remote peripheral...
             if (currentCommand == REQUEST_MTU_COMMAND) {
-                currentCommand = ""
+                currentCommand = IDLE
                 completedCommand()
             }
         }
@@ -235,7 +233,7 @@ class BluetoothPeripheral internal constructor(
             if (gattStatus != GattStatus.SUCCESS) {
                 Timber.e("read Phy failed, status '%s'", gattStatus)
             } else {
-                Timber.i("updated Phy: tx = %s, rx = %s", PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy))
+                Timber.d("updated Phy: tx = %s, rx = %s", PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy))
             }
 
             val resultCallback = currentResultCallback
@@ -248,11 +246,17 @@ class BluetoothPeripheral internal constructor(
             if (gattStatus != GattStatus.SUCCESS) {
                 Timber.e("update Phy failed, status '%s'", gattStatus)
             } else {
-                Timber.i("updated Phy: tx = %s, rx = %s", PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy))
+                Timber.d("updated Phy: tx = %s, rx = %s", PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy))
             }
 
             val resultCallback = currentResultCallback
             callbackScope.launch { resultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.fromValue(txPhy), PhyType.fromValue(rxPhy), gattStatus) }
+
+            // Only complete the command if we initiated the operation. It can also be initiated by the remote peripheral...
+            if (currentCommand == SET_PHY_TYPE_COMMAND) {
+                currentCommand = IDLE
+                completedCommand()
+            }
         }
 
         /**
@@ -266,21 +270,19 @@ class BluetoothPeripheral internal constructor(
             } else {
                 Timber.e("connection parameters update failed with status '%s'", gattStatus)
             }
-            callbackScope.launch { peripheralCallback.onConnectionUpdated(this@BluetoothPeripheral, interval, latency, timeout, gattStatus) }
         }
     }
 
     private fun successfullyConnected() {
-        val bondstate = bondState
         val timePassed = SystemClock.elapsedRealtime() - connectTimestamp
-        Timber.i("connected to '%s' (%s) in %.1fs", name, bondstate, timePassed / 1000.0f)
+        Timber.d("connected to '%s' (%s) in %.1fs", name, bondState, timePassed / 1000.0f)
 
-        if (bondstate == BondState.NONE || bondstate == BondState.BONDED) {
+        if (bondState == BondState.NONE || bondState == BondState.BONDED) {
             discoverServices()
-        } else if (bondstate == BondState.BONDING) {
+        } else if (bondState == BondState.BONDING) {
             // Apparently the bonding process has already started, so let it complete.
             // We'll do discoverServices() when bonding finishes
-            Timber.i("waiting for bonding to complete")
+            Timber.d("waiting for bonding to complete")
         }
     }
 
@@ -297,9 +299,9 @@ class BluetoothPeripheral internal constructor(
 
     private fun successfullyDisconnected(previousState: Int) {
         if (previousState == BluetoothProfile.STATE_CONNECTED || previousState == BluetoothProfile.STATE_DISCONNECTING) {
-            Timber.i("disconnected '%s' on request", name)
+            Timber.d("disconnected '%s' on request", name)
         } else if (previousState == BluetoothProfile.STATE_CONNECTING) {
-            Timber.i("cancelling connect attempt")
+            Timber.d("cancelling connect attempt")
         }
         if (bondLost) {
             completeDisconnect(false, HciStatus.SUCCESS)
@@ -325,30 +327,26 @@ class BluetoothPeripheral internal constructor(
             val timePassed = SystemClock.elapsedRealtime() - connectTimestamp
             val isTimeout = timePassed > timoutThreshold
             val adjustedStatus = if (status == HciStatus.ERROR && isTimeout) HciStatus.CONNECTION_FAILED_ESTABLISHMENT else status
-            Timber.i("connection failed with status '%s'", adjustedStatus)
+            Timber.d("connection failed with status '%s'", adjustedStatus)
             completeDisconnect(false, adjustedStatus)
             listener.connectFailed(this@BluetoothPeripheral, adjustedStatus)
         } else if (previousState == BluetoothProfile.STATE_CONNECTED && newState == BluetoothProfile.STATE_DISCONNECTED && !servicesDiscovered) {
             // We got a disconnection before the services were even discovered
-            Timber.i("peripheral '%s' disconnected with status '%s' (%d) before completing service discovery", name, status, status.value)
+            Timber.d("peripheral '%s' disconnected with status '%s' (%d) before completing service discovery", name, status, status.value)
             completeDisconnect(false, status)
             listener.connectFailed(this@BluetoothPeripheral, status)
         } else {
             // See if we got connection drop
             if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                Timber.i("peripheral '%s' disconnected with status '%s' (%d)", name, status, status.value)
+                Timber.d("peripheral '%s' disconnected with status '%s' (%d)", name, status, status.value)
             } else {
-                Timber.i("unexpected connection state change for '%s' status '%s' (%d)", name, status, status.value)
+                Timber.d("unexpected connection state change for '%s' status '%s' (%d)", name, status, status.value)
             }
             completeDisconnect(true, status)
         }
     }
 
     private fun cancelPendingServiceDiscovery() {
-//        if (discoverServicesRunnable != null) {
-//            mainHandler.removeCallbacks(discoverServicesRunnable!!)
-//            discoverServicesRunnable = null
-//        }
         discoverJob?.cancel()
         discoverJob = null
     }
@@ -383,8 +381,7 @@ class BluetoothPeripheral internal constructor(
                 if (services.isEmpty() && !discoveryStarted) {
                     discoverServices()
                 }
-
-                // If we are doing a manual bond, complete the command
+                
                 if (manuallyBonding) {
                     manuallyBonding = false
                     completedCommand()
@@ -398,8 +395,7 @@ class BluetoothPeripheral internal constructor(
                 } else {
                     Timber.e("bond lost for '%s'", name)
                     bondLost = true
-
-                    // Cancel the discoverServiceRunnable if it is still pending
+                    
                     cancelPendingServiceDiscovery()
                     callbackScope.launch { bondStateCallback.invoke(BondState.BOND_LOST) }
                 }
@@ -411,11 +407,10 @@ class BluetoothPeripheral internal constructor(
     private val pairingRequestBroadcastReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val receivedDevice = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE) ?: return
-
-            // Skip other devices
             if (!receivedDevice.address.equals(address, ignoreCase = true)) return
             val variant = intent.getIntExtra(BluetoothDevice.EXTRA_PAIRING_VARIANT, BluetoothDevice.ERROR)
-            Timber.d("pairing request received: " + pairingVariantToString(variant) + " (" + variant + ")")
+            
+            Timber.d("pairing request received: %s (%s)", pairingVariantToString(variant), variant)
             if (variant == PAIRING_VARIANT_PIN) {
                 val pin = listener.getPincode(this@BluetoothPeripheral)
                 if (pin != null) {
@@ -435,13 +430,10 @@ class BluetoothPeripheral internal constructor(
      * Connect directly with the bluetooth device. This call will timeout in max 30 seconds (5 seconds on Samsung phones)
      */
     fun connect() {
-        // Make sure we are disconnected before we start making a connection
         if (state == BluetoothProfile.STATE_DISCONNECTED) {
             scope.launch {
                 delay(DIRECT_CONNECTION_DELAY_IN_MS)
-
-                // Connect to device with autoConnect = false
-                Timber.i("connect to '%s' (%s) using TRANSPORT_LE", name, address)
+                Timber.d("connect to '%s' (%s) using TRANSPORT_LE", name, address)
                 registerBondingBroadcastReceivers()
                 state = BluetoothProfile.STATE_CONNECTING
                 discoveryStarted = false
@@ -463,8 +455,7 @@ class BluetoothPeripheral internal constructor(
         // https://stackoverflow.com/questions/43476369/android-save-ble-device-to-reconnect-after-app-close
         if (state == BluetoothProfile.STATE_DISCONNECTED) {
             scope.launch {
-                // Connect to device with autoConnect = true
-                Timber.i("autoConnect to '%s' (%s) using TRANSPORT_LE", name, address)
+                Timber.d("autoConnect to '%s' (%s) using TRANSPORT_LE", name, address)
                 registerBondingBroadcastReceivers()
                 state = BluetoothProfile.STATE_CONNECTING
                 discoveryStarted = false
@@ -583,7 +574,7 @@ class BluetoothPeripheral internal constructor(
      */
     private fun completeDisconnect(notify: Boolean, status: HciStatus) {
         if (bluetoothGatt != null) {
-            bluetoothGatt!!.close()
+            bluetoothGatt?.close()
             bluetoothGatt = null
         }
         commandQueue.clear()
@@ -593,7 +584,7 @@ class BluetoothPeripheral internal constructor(
             context.unregisterReceiver(bondStateReceiver)
             context.unregisterReceiver(pairingRequestBroadcastReceiver)
         } catch (e: IllegalArgumentException) {
-            // In case bluetooth is off, unregisering broadcast receivers may fail
+            // In case bluetooth is off, unregistering broadcast receivers may fail
         }
         bondLost = false
         if (notify) {
@@ -615,7 +606,7 @@ class BluetoothPeripheral internal constructor(
      * @return the PeripheralType
      */
     val type: PeripheralType
-        get() = PeripheralType.fromValue(device.type)// Cache the name so that we even know it when bluetooth is switched off
+        get() = PeripheralType.fromValue(device.type)
 
     /**
      * Get the name of the bluetooth peripheral.
@@ -1256,7 +1247,7 @@ class BluetoothPeripheral internal constructor(
                 currentResultCallback = resultCallback
                 if (bluetoothGatt!!.requestMtu(mtu)) {
                     currentCommand = REQUEST_MTU_COMMAND
-                    Timber.i("requesting MTU of %d", mtu)
+                    Timber.d("requesting MTU of %d", mtu)
                 } else {
                     Timber.e("requestMtu failed")
                     completedCommand()
@@ -1311,7 +1302,7 @@ class BluetoothPeripheral internal constructor(
             }
 
             callbackScope.launch {
-                delay(500)
+                delay(AVG_REQUEST_CONNECTION_PRIORITY_DURATION)
                 currentResultCallback.onRequestedConnectionPriority(this@BluetoothPeripheral)
                 completedCommand()
             }
@@ -1357,13 +1348,13 @@ class BluetoothPeripheral internal constructor(
 
         val result = commandQueue.add(Runnable {
             if (isConnected) {
-                Timber.i("setting preferred Phy: tx = %s, rx = %s, options = %s", txPhy, rxPhy, phyOptions)
+                Timber.d("setting preferred Phy: tx = %s, rx = %s, options = %s", txPhy, rxPhy, phyOptions)
                 currentResultCallback = resultCallback
+                currentCommand = SET_PHY_TYPE_COMMAND
                 bluetoothGatt?.setPreferredPhy(txPhy.mask, rxPhy.mask, phyOptions.value)
+            } else {
+                completedCommand()
             }
-
-            // complete command immediately as this command is not blocking
-            completedCommand()
         })
 
         if (result) {
@@ -1423,7 +1414,7 @@ class BluetoothPeripheral internal constructor(
      *
      * @return true if the method was executed, false if not executed
      */
-    fun clearServicesCache(): Boolean {
+    suspend fun clearServicesCache(): Boolean {
         if (bluetoothGatt == null) return false
         var result = false
         try {
@@ -1434,6 +1425,7 @@ class BluetoothPeripheral internal constructor(
         } catch (e: Exception) {
             Timber.e("could not invoke refresh method")
         }
+        delay(100)
         return result
     }
 
@@ -1525,13 +1517,6 @@ class BluetoothPeripheral internal constructor(
     private var timeoutJob : Job? = null
     private fun startConnectionTimer(peripheral: BluetoothPeripheral) {
         cancelConnectionTimer()
-//        timeoutRunnable = Runnable {
-//            Timber.e("connection timout, disconnecting '%s'", peripheral.name)
-//            disconnect()
-//            mainHandler.postDelayed({ bluetoothGattCallback.onConnectionStateChange(bluetoothGatt, HciStatus.CONNECTION_FAILED_ESTABLISHMENT.value, BluetoothProfile.STATE_DISCONNECTED) }, 50)
-//            timeoutRunnable = null
-//        }
-//        mainHandler.postDelayed(timeoutRunnable!!, CONNECTION_TIMEOUT_IN_MS.toLong())
 
         timeoutJob = scope.launch {
             delay(CONNECTION_TIMEOUT_IN_MS)
@@ -1545,10 +1530,6 @@ class BluetoothPeripheral internal constructor(
     }
 
     private fun cancelConnectionTimer() {
-//        if (timeoutRunnable != null) {
-//            mainHandler.removeCallbacks(timeoutRunnable!!)
-//            timeoutRunnable = null
-//        }
         timeoutJob?.cancel()
         timeoutJob = null
     }
@@ -1612,13 +1593,18 @@ class BluetoothPeripheral internal constructor(
         // When a bond is lost, the bluetooth stack needs some time to update its internal state
         private const val DELAY_AFTER_BOND_LOST = 1000L
 
+        // The average time it takes to complete requestConnectionPriority
+        private const val AVG_REQUEST_CONNECTION_PRIORITY_DURATION = 500L
+
         // Error message constants
         private const val PERIPHERAL_NOT_CONNECTED = "peripheral not connected"
         private const val VALUE_BYTE_ARRAY_IS_EMPTY = "value byte array is empty"
         private const val VALUE_BYTE_ARRAY_IS_TOO_LONG = "value byte array is too long"
 
         // String constants for commands where the callbacks can also happen because the remote peripheral initiated the command
-        private const val REQUEST_MTU_COMMAND = "REQUEST_MTU"
+        private const val IDLE = 0
+        private const val REQUEST_MTU_COMMAND = 1
+        private const val SET_PHY_TYPE_COMMAND = 2
 
         // Pairing variant codes
         private const val PAIRING_VARIANT_PIN = 0

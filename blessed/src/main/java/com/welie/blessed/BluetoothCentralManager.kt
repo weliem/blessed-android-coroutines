@@ -107,7 +107,6 @@ class BluetoothCentralManager(private val context: Context) {
             if (isScanning) {
                 val peripheral = getPeripheral(result.device.address)
                 peripheral.setDevice(result.device)
-               // bluetoothCentralManagerCallback.onDiscoveredPeripheral(peripheral, result)
                 currentResultCallback?.invoke(peripheral, result)
             }
         }
@@ -336,7 +335,6 @@ class BluetoothCentralManager(private val context: Context) {
      */
     fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>,resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
         require(filters.isNotEmpty()) { "at least one scan filter must be supplied" }
-
         currentResultCallback = resultCallback
         startScan(filters, scanSettings, defaultScanCallback)
     }
@@ -357,6 +355,7 @@ class BluetoothCentralManager(private val context: Context) {
         if (autoConnectScanner != null) {
             stopAutoconnectScan()
         }
+
         autoConnectScanner = bluetoothAdapter.bluetoothLeScanner
         if (autoConnectScanner != null) {
             val filters: MutableList<ScanFilter> = ArrayList()
@@ -393,7 +392,7 @@ class BluetoothCentralManager(private val context: Context) {
         cancelTimeoutTimer()
         if (isScanning) {
             if (bluetoothScanner != null) {
-                bluetoothScanner!!.stopScan(currentCallback)
+                bluetoothScanner?.stopScan(currentCallback)
                 Timber.i("scan stopped")
             }
         } else {
@@ -420,6 +419,12 @@ class BluetoothCentralManager(private val context: Context) {
     }
 
 
+    /**
+     * Connect to a known peripheral immediately. The peripheral must have been found by scanning for this call to succeed. This method will time out in max 30 seconds on most phones and in 5 seconds on Samsung phones.
+     * If the peripheral is already connected, no connection attempt will be made. This method is asynchronous and there can be only one outstanding connect.
+     *
+     * @param peripheral BLE peripheral to connect with
+     */
     suspend fun connectPeripheral(peripheral: BluetoothPeripheral): Unit =
         suspendCoroutine {
             try {
@@ -437,12 +442,6 @@ class BluetoothCentralManager(private val context: Context) {
             }
         }
 
-    /**
-     * Connect to a known peripheral immediately. The peripheral must have been found by scanning for this call to succeed. This method will time out in max 30 seconds on most phones and in 5 seconds on Samsung phones.
-     * If the peripheral is already connected, no connection attempt will be made. This method is asynchronous and there can be only one outstanding connect.
-     *
-     * @param peripheral BLE peripheral to connect with
-     */
     private fun connectPeripheral(peripheral: BluetoothPeripheral, resultCentralManagerCallback: BluetoothCentralManagerCallback) {
         synchronized(connectLock) {
             checkPeripheralStatus(peripheral)
@@ -478,7 +477,6 @@ class BluetoothCentralManager(private val context: Context) {
                 return
             }
 
-            peripheral.peripheralCallback = NULL()
             scannedPeripherals.remove(peripheral.address)
             unconnectedPeripherals[peripheral.address] = peripheral
             peripheral.autoConnect()
@@ -512,6 +510,11 @@ class BluetoothCentralManager(private val context: Context) {
         scanForAutoConnectPeripherals()
     }
 
+    /**
+     * Cancel an active or pending connection for a peripheral.
+     *
+     * @param peripheral the peripheral
+     */
     suspend fun cancelConnection(peripheral: BluetoothPeripheral): Unit =
         suspendCoroutine {
             cancelConnection(peripheral, object : BluetoothCentralManagerCallback() {
@@ -520,11 +523,7 @@ class BluetoothCentralManager(private val context: Context) {
                 }
             })
         }
-    /**
-     * Cancel an active or pending connection for a peripheral.
-     *
-     * @param peripheral the peripheral
-     */
+
     fun cancelConnection(peripheral: BluetoothPeripheral, resultCentralManagerCallback: BluetoothCentralManagerCallback) {
         // First check if we are doing a reconnection scan for this peripheral
         val peripheralAddress = peripheral.address
@@ -604,7 +603,7 @@ class BluetoothCentralManager(private val context: Context) {
         } else if (scannedPeripherals.containsKey(peripheralAddress)) {
             Objects.requireNonNull(scannedPeripherals[peripheralAddress])!!
         } else {
-            val peripheral = BluetoothPeripheral(context, bluetoothAdapter.getRemoteDevice(peripheralAddress), internalCallback, NULL())
+            val peripheral = BluetoothPeripheral(context, bluetoothAdapter.getRemoteDevice(peripheralAddress), internalCallback)
             scannedPeripherals[peripheralAddress] = peripheral
             peripheral
         }

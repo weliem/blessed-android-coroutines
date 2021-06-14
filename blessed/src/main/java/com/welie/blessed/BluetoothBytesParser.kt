@@ -275,17 +275,17 @@ class BluetoothBytesParser (
     fun getDateTime(offset: Int): Date {
         // DateTime is always in little endian
         var localOffset = offset
-        val year = getIntValue(FORMAT_UINT16, offset, LITTLE_ENDIAN)
+        val year = getIntValue(FORMAT_UINT16, localOffset, LITTLE_ENDIAN)
         localOffset += getTypeLen(FORMAT_UINT16)
-        val month = getIntValue(FORMAT_UINT8, offset, LITTLE_ENDIAN)
+        val month = getIntValue(FORMAT_UINT8, localOffset, LITTLE_ENDIAN)
         localOffset += getTypeLen(FORMAT_UINT8)
-        val day = getIntValue(FORMAT_UINT8, offset, LITTLE_ENDIAN)
+        val day = getIntValue(FORMAT_UINT8, localOffset, LITTLE_ENDIAN)
         localOffset += getTypeLen(FORMAT_UINT8)
-        val hour = getIntValue(FORMAT_UINT8, offset, LITTLE_ENDIAN)
+        val hour = getIntValue(FORMAT_UINT8, localOffset, LITTLE_ENDIAN)
         localOffset += getTypeLen(FORMAT_UINT8)
-        val min = getIntValue(FORMAT_UINT8, offset, LITTLE_ENDIAN)
+        val min = getIntValue(FORMAT_UINT8, localOffset, LITTLE_ENDIAN)
         localOffset += getTypeLen(FORMAT_UINT8)
-        val sec = getIntValue(FORMAT_UINT8, offset, LITTLE_ENDIAN)
+        val sec = getIntValue(FORMAT_UINT8, localOffset, LITTLE_ENDIAN)
         val calendar = GregorianCalendar(year, month - 1, day, hour, min, sec)
         return calendar.time
     }
