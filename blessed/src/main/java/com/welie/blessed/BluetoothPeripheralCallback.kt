@@ -28,7 +28,8 @@ import android.bluetooth.BluetoothGattDescriptor
 /**
  * Callbacks for the BluetoothPeripheral class
  */
-abstract class BluetoothPeripheralCallback {
+@Suppress("UNUSED_PARAMETER")
+internal abstract class BluetoothPeripheralCallback {
     /**
      * Callback invoked when the list of remote services, characteristics and descriptors
      * for the remote peripheral has been discovered.

@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.welie.blessed.BluetoothPeripheral
 import com.welie.blessedexample.BluetoothHandler.Companion.getInstance
@@ -23,8 +24,23 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var measurementValue: TextView? = null
     private val dateFormat: DateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.ENGLISH)
+    private val enableBluetoothRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (it.resultCode == RESULT_OK) {
+            // Bluetooth has been enabled
+            checkPermissions()
+        } else {
+            // Bluetooth has not been enabled, try again
+            askToEnableBluetooth()
+        }
+    }
+
+    private fun askToEnableBluetooth() {
+        val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+        enableBluetoothRequest.launch(enableBtIntent)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,8 +53,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (BluetoothAdapter.getDefaultAdapter() != null) {
             if (!isBluetoothEnabled) {
-                val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
+                askToEnableBluetooth()
             } else {
                 checkPermissions()
             }
@@ -52,8 +67,6 @@ class MainActivity : AppCompatActivity() {
             val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: return false
             return bluetoothAdapter.isEnabled
         }
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 
 

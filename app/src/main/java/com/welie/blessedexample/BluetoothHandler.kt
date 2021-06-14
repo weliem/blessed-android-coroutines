@@ -122,7 +122,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(HRS_SERVICE_UUID, HEARTRATE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = HeartRateMeasurement.fromBytes(value)
-                heartRateChannel.offer(measurement)
+                heartRateChannel.trySend(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -132,7 +132,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(WSS_SERVICE_UUID, WSS_MEASUREMENT_CHAR_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = WeightMeasurement.fromBytes(value)
-                weightChannel.offer(measurement)
+                weightChannel.trySend(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -142,7 +142,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(GLUCOSE_SERVICE_UUID, GLUCOSE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = GlucoseMeasurement.fromBytes(value)
-                glucoseChannel.offer(measurement)
+                glucoseChannel.trySend(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -169,7 +169,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(BLP_SERVICE_UUID, BLOOD_PRESSURE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = BloodPressureMeasurement.fromBytes(value)
-                bloodpressureChannel.offer(measurement)
+                bloodpressureChannel.trySend(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -179,7 +179,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(HTS_SERVICE_UUID, TEMPERATURE_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = TemperatureMeasurement.fromBytes(value)
-                temperatureChannel.offer(measurement)
+                temperatureChannel.trySend(measurement)
                 Timber.d("%s", measurement)
             }
         }
@@ -190,7 +190,7 @@ internal class BluetoothHandler private constructor(private val context: Context
             peripheral.observe(it) { value ->
                 val measurement = PulseOximeterContinuousMeasurement.fromBytes(value)
                 if (measurement.spO2 <= 100 && measurement.pulseRate <= 220) {
-                    pulseOxContinuousChannel.offer(measurement)
+                    pulseOxContinuousChannel.trySend(measurement)
                 }
                 Timber.d("%s", measurement)
             }
@@ -199,7 +199,7 @@ internal class BluetoothHandler private constructor(private val context: Context
         peripheral.getCharacteristic(PLX_SERVICE_UUID, PLX_SPOT_MEASUREMENT_CHAR_UUID)?.let {
             peripheral.observe(it) { value ->
                 val measurement = PulseOximeterSpotMeasurement.fromBytes(value)
-                pulseOxSpotChannel.offer(measurement)
+                pulseOxSpotChannel.trySend(measurement)
                 Timber.d("%s", measurement)
             }
         }

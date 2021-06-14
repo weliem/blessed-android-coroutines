@@ -31,6 +31,7 @@ import com.welie.blessed.GattStatus
 /**
  * Callbacks for the BluetoothPeripheralManager class
  */
+@Suppress("UNUSED_PARAMETER")
 abstract class BluetoothPeripheralManagerCallback {
     /**
      * Indicates whether a local service has been added successfully.

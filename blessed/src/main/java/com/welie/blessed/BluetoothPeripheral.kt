@@ -262,6 +262,7 @@ class BluetoothPeripheral internal constructor(
         /**
          * This callback is only called from Android 8 (Oreo) or higher
          */
+        @Suppress("UNUSED_PARAMETER")
         fun onConnectionUpdated(gatt: BluetoothGatt, interval: Int, latency: Int, timeout: Int, status: Int) {
             val gattStatus = GattStatus.fromValue(status)
             if (gattStatus == GattStatus.SUCCESS) {
@@ -1183,7 +1184,7 @@ class BluetoothPeripheral internal constructor(
      *
      * @return true if the operation was enqueued, false otherwise
      */
-    fun readRemoteRssi(resultCallback: BluetoothPeripheralCallback): Boolean {
+    private fun readRemoteRssi(resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
         val result = commandQueue.add(Runnable {
@@ -1343,7 +1344,7 @@ class BluetoothPeripheral internal constructor(
         }
 
 
-    fun setPreferredPhy(txPhy: PhyType, rxPhy: PhyType, phyOptions: PhyOptions, resultCallback: BluetoothPeripheralCallback): Boolean {
+    private fun setPreferredPhy(txPhy: PhyType, rxPhy: PhyType, phyOptions: PhyOptions, resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
         val result = commandQueue.add(Runnable {

@@ -412,7 +412,7 @@ class BluetoothCentralManager(private val context: Context) {
         get() = bluetoothScanner != null && currentCallback != null
 
 
-    private var connectionStateCallback : (peripheral : BluetoothPeripheral, state : ConnectionState) -> Unit = { peripheral, state ->  }
+    private var connectionStateCallback : (peripheral : BluetoothPeripheral, state : ConnectionState) -> Unit = {_,_ -> }
 
     fun observeConnectionState(connectionCallback: (peripheral : BluetoothPeripheral, state : ConnectionState) -> Unit) {
         connectionStateCallback = connectionCallback
@@ -561,28 +561,28 @@ class BluetoothCentralManager(private val context: Context) {
      *
      * @param batch the map of peripherals and their callbacks to autoconnect to
      */
-    fun autoConnectPeripheralsBatch(batch: Map<BluetoothPeripheral, BluetoothPeripheralCallback?>) {
-        // Find the uncached peripherals and issue autoConnectPeripheral for the cached ones
-        val uncachedPeripherals: MutableMap<BluetoothPeripheral, BluetoothPeripheralCallback?> = HashMap()
-        for (peripheral in batch.keys) {
-            if (peripheral.isUncached) {
-                uncachedPeripherals[peripheral] = batch[peripheral]
-            } else {
-                autoConnectPeripheral(peripheral)
-            }
-        }
-
-        // Add uncached peripherals to list of peripherals to scan for
-        if (!uncachedPeripherals.isEmpty()) {
-            for (peripheral in uncachedPeripherals.keys) {
-                val peripheralAddress = peripheral.address
-                reconnectPeripheralAddresses.add(peripheralAddress)
-                reconnectCallbacks[peripheralAddress] = uncachedPeripherals[peripheral]
-                unconnectedPeripherals[peripheralAddress] = peripheral
-            }
-            scanForAutoConnectPeripherals()
-        }
-    }
+//    fun autoConnectPeripheralsBatch(batch: Map<BluetoothPeripheral, BluetoothPeripheralCallback?>) {
+//        // Find the uncached peripherals and issue autoConnectPeripheral for the cached ones
+//        val uncachedPeripherals: MutableMap<BluetoothPeripheral, BluetoothPeripheralCallback?> = HashMap()
+//        for (peripheral in batch.keys) {
+//            if (peripheral.isUncached) {
+//                uncachedPeripherals[peripheral] = batch[peripheral]
+//            } else {
+//                autoConnectPeripheral(peripheral)
+//            }
+//        }
+//
+//        // Add uncached peripherals to list of peripherals to scan for
+//        if (!uncachedPeripherals.isEmpty()) {
+//            for (peripheral in uncachedPeripherals.keys) {
+//                val peripheralAddress = peripheral.address
+//                reconnectPeripheralAddresses.add(peripheralAddress)
+//                reconnectCallbacks[peripheralAddress] = uncachedPeripherals[peripheral]
+//                unconnectedPeripherals[peripheralAddress] = peripheral
+//            }
+//            scanForAutoConnectPeripherals()
+//        }
+//    }
 
     /**
      * Get a peripheral object matching the specified mac address.
