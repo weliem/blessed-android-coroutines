@@ -3,6 +3,7 @@ apply plugin: 'kotlin-android'
 
 android {
     compileSdkVersion 30
+
     defaultConfig {
         applicationId "com.welie.blessedexample"
         minSdkVersion 26

@@ -59,7 +59,6 @@ class BluetoothCentralManager(private val context: Context) {
     private val unconnectedPeripherals: MutableMap<String, BluetoothPeripheral?> = ConcurrentHashMap()
     private val scannedPeripherals: MutableMap<String, BluetoothPeripheral> = ConcurrentHashMap()
     private val reconnectPeripheralAddresses: MutableList<String> = ArrayList()
-    private val reconnectCallbacks: MutableMap<String, BluetoothPeripheralCallback?> = ConcurrentHashMap()
     private var scanPeripheralNames = emptyArray<String>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var timeoutRunnable: Runnable? = null
@@ -129,12 +128,10 @@ class BluetoothCentralManager(private val context: Context) {
                 stopAutoconnectScan()
                 val deviceAddress = result.device.address
                 val peripheral = unconnectedPeripherals[deviceAddress]
-                val callback = reconnectCallbacks[deviceAddress]
                 reconnectPeripheralAddresses.remove(deviceAddress)
-                reconnectCallbacks.remove(deviceAddress)
                 unconnectedPeripherals.remove(deviceAddress)
                 scannedPeripherals.remove(deviceAddress)
-                if (peripheral != null && callback != null) {
+                if (peripheral != null) {
                     autoConnectPeripheral(peripheral)
                 }
                 if (reconnectPeripheralAddresses.size > 0) {
@@ -219,7 +216,6 @@ class BluetoothCentralManager(private val context: Context) {
     fun close() {
         unconnectedPeripherals.clear()
         connectedPeripherals.clear()
-        reconnectCallbacks.clear()
         reconnectPeripheralAddresses.clear()
         scannedPeripherals.clear()
         context.unregisterReceiver(adapterStateReceiver)
@@ -506,7 +502,6 @@ class BluetoothCentralManager(private val context: Context) {
             return
         }
         reconnectPeripheralAddresses.add(peripheralAddress)
-        reconnectCallbacks[peripheralAddress] = peripheralCallback
         scanForAutoConnectPeripherals()
     }
 
@@ -529,7 +524,6 @@ class BluetoothCentralManager(private val context: Context) {
         val peripheralAddress = peripheral.address
         if (reconnectPeripheralAddresses.contains(peripheralAddress)) {
             reconnectPeripheralAddresses.remove(peripheralAddress)
-            reconnectCallbacks.remove(peripheralAddress)
             unconnectedPeripherals.remove(peripheralAddress)
             stopAutoconnectScan()
             Timber.d("cancelling autoconnect for %s", peripheralAddress)
@@ -561,28 +555,27 @@ class BluetoothCentralManager(private val context: Context) {
      *
      * @param batch the map of peripherals and their callbacks to autoconnect to
      */
-//    fun autoConnectPeripheralsBatch(batch: Map<BluetoothPeripheral, BluetoothPeripheralCallback?>) {
-//        // Find the uncached peripherals and issue autoConnectPeripheral for the cached ones
-//        val uncachedPeripherals: MutableMap<BluetoothPeripheral, BluetoothPeripheralCallback?> = HashMap()
-//        for (peripheral in batch.keys) {
-//            if (peripheral.isUncached) {
-//                uncachedPeripherals[peripheral] = batch[peripheral]
-//            } else {
-//                autoConnectPeripheral(peripheral)
-//            }
-//        }
-//
-//        // Add uncached peripherals to list of peripherals to scan for
-//        if (!uncachedPeripherals.isEmpty()) {
-//            for (peripheral in uncachedPeripherals.keys) {
-//                val peripheralAddress = peripheral.address
-//                reconnectPeripheralAddresses.add(peripheralAddress)
-//                reconnectCallbacks[peripheralAddress] = uncachedPeripherals[peripheral]
-//                unconnectedPeripherals[peripheralAddress] = peripheral
-//            }
-//            scanForAutoConnectPeripherals()
-//        }
-//    }
+    fun autoConnectPeripheralsBatch(batch: Set<BluetoothPeripheral>) {
+        // Find the uncached peripherals and issue autoConnectPeripheral for the cached ones
+        val uncachedPeripherals: MutableSet<BluetoothPeripheral> = HashSet()
+        for (peripheral in batch) {
+            if (peripheral.isUncached) {
+                uncachedPeripherals.add(peripheral)
+            } else {
+                autoConnectPeripheral(peripheral)
+            }
+        }
+
+        // Add uncached peripherals to list of peripherals to scan for
+        if (uncachedPeripherals.isNotEmpty()) {
+            for (peripheral in uncachedPeripherals) {
+                val peripheralAddress = peripheral.address
+                reconnectPeripheralAddresses.add(peripheralAddress)
+                unconnectedPeripherals[peripheralAddress] = peripheral
+            }
+            scanForAutoConnectPeripherals()
+        }
+    }
 
     /**
      * Get a peripheral object matching the specified mac address.
@@ -835,7 +828,6 @@ class BluetoothCentralManager(private val context: Context) {
 
         // Clean up autoconnect by scanning information
         reconnectPeripheralAddresses.clear()
-        reconnectCallbacks.clear()
     }
 
     /**
