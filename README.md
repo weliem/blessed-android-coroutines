@@ -77,6 +77,7 @@ There are 3 ways to connect to a device:
 ```kotlin
 suspend fun connectPeripheral(peripheral: BluetoothPeripheral): Unit
 fun autoConnectPeripheral(peripheral: BluetoothPeripheral)
+fun autoConnectPeripheralsBatch(batch: Set<BluetoothPeripheral>)
 ```
 
 The method `connectPeripheral` is a **suspending function** will try to immediately connect to a device that has already been found using a scan. This method will time out after 30 seconds or less, depending on the device manufacturer, and a `ConnectionFailedException` will be thrown. Note that there can be **only 1 outstanding** `connectPeripheral`. So if it is called multiple times only 1 will succeed.
