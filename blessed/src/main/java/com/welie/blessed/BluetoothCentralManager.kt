@@ -38,7 +38,6 @@ import android.os.ParcelUuid
 import com.welie.blessed.BluetoothPeripheral.InternalCallback
 import com.welie.blessed.BluetoothPeripheralCallback.NULL
 import kotlinx.coroutines.*
-import timber.log.Timber
 import java.lang.Runnable
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -51,7 +50,7 @@ import kotlin.coroutines.suspendCoroutine
  */
 class BluetoothCentralManager(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val bluetoothAdapter: BluetoothAdapter
+    private val bluetoothAdapter: BluetoothAdapter = requireNotNull(BluetoothAdapter.getDefaultAdapter())
     private var bluetoothScanner: BluetoothLeScanner? = null
     private var autoConnectScanner: BluetoothLeScanner? = null
     private var currentCentralManagerCallback: BluetoothCentralManagerCallback = BluetoothCentralManagerCallback.NULL()
@@ -115,7 +114,7 @@ class BluetoothCentralManager(private val context: Context) {
         currentCallback = null
         currentFilters = null
         scope.launch {
-            Timber.e("scan failed with error code %d (%s)", scanFailure.value, scanFailure)
+            Logger.e(TAG, "scan failed with error code %d (%s)", scanFailure.value, scanFailure)
          //   bluetoothCentralManagerCallback.onScanFailed(scanFailure)
         }
     }
@@ -124,7 +123,7 @@ class BluetoothCentralManager(private val context: Context) {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             synchronized(this) {
                 if (!isAutoScanning) return
-                Timber.d("peripheral with address '%s' found", result.device.address)
+                Logger.d(TAG, "peripheral with address '%s' found", result.device.address)
                 stopAutoconnectScan()
                 val deviceAddress = result.device.address
                 val peripheral = unconnectedPeripherals[deviceAddress]
@@ -142,7 +141,7 @@ class BluetoothCentralManager(private val context: Context) {
 
         override fun onScanFailed(errorCode: Int) {
             val scanFailure = ScanFailure.fromValue(errorCode)
-            Timber.e("autoConnect scan failed with error code %d (%s)", errorCode, scanFailure)
+            Logger.e(TAG, "autoConnect scan failed with error code %d (%s)", errorCode, scanFailure)
             autoConnectScanner = null
          //   scope.launch { bluetoothCentralManagerCallback.onScanFailed(scanFailure) }
         }
@@ -173,13 +172,13 @@ class BluetoothCentralManager(private val context: Context) {
 
             // Retry connection or conclude the connection has failed
             if (nrRetries < MAX_CONNECTION_RETRIES && status != HciStatus.CONNECTION_FAILED_ESTABLISHMENT) {
-                Timber.i("retrying connection to '%s' (%s)", peripheral.name, peripheral.address)
+                Logger.i(TAG, "retrying connection to '%s' (%s)", peripheral.name, peripheral.address)
                 nrRetries++
                 connectionRetries[peripheral.address] = nrRetries
                 unconnectedPeripherals[peripheral.address] = peripheral
                 peripheral.connect()
             } else {
-                Timber.i("connection to '%s' (%s) failed", peripheral.name, peripheral.address)
+                Logger.i(TAG, "connection to '%s' (%s) failed", peripheral.name, peripheral.address)
                 connectionRetries.remove(peripheral.address)
                 scope.launch {
                     currentCentralManagerCallback.onConnectionFailed(peripheral, status)
@@ -243,7 +242,7 @@ class BluetoothCentralManager(private val context: Context) {
     private fun startScan(filters: List<ScanFilter>, scanSettings: ScanSettings, scanCallback: ScanCallback) {
         if (bleNotReady()) return
         if (isScanning) {
-            Timber.e("other scan still active, stopping scan")
+            Logger.e(TAG, "other scan still active, stopping scan")
             stopScan()
         }
         if (bluetoothScanner == null) {
@@ -254,9 +253,9 @@ class BluetoothCentralManager(private val context: Context) {
             currentCallback = scanCallback
             currentFilters = filters
             bluetoothScanner!!.startScan(filters, scanSettings, scanCallback)
-            Timber.i("scan started")
+            Logger.i(TAG, "scan started")
         } else {
-            Timber.e("starting scan failed")
+            Logger.e(TAG, "starting scan failed")
         }
     }
 
@@ -317,7 +316,7 @@ class BluetoothCentralManager(private val context: Context) {
                     .build()
                 filters.add(filter)
             } else {
-                Timber.e("%s is not a valid address. Make sure all alphabetic characters are uppercase.", address)
+                Logger.e(TAG, "%s is not a valid address. Make sure all alphabetic characters are uppercase.", address)
             }
         }
         startScan(filters, scanSettings, defaultScanCallback)
@@ -362,10 +361,10 @@ class BluetoothCentralManager(private val context: Context) {
                 filters.add(filter)
             }
             autoConnectScanner!!.startScan(filters, autoConnectScanSettings, autoConnectScanCallback)
-            Timber.d("started scanning to autoconnect peripherals (" + reconnectPeripheralAddresses.size + ")")
+            Logger.d(TAG, "started scanning to autoconnect peripherals (" + reconnectPeripheralAddresses.size + ")")
             setAutoConnectTimer()
         } else {
-            Timber.e("starting autoconnect scan failed")
+            Logger.e(TAG, "starting autoconnect scan failed")
         }
     }
 
@@ -374,7 +373,7 @@ class BluetoothCentralManager(private val context: Context) {
         if (autoConnectScanner != null) {
             autoConnectScanner!!.stopScan(autoConnectScanCallback)
             autoConnectScanner = null
-            Timber.i("autoscan stopped")
+            Logger.i(TAG, "autoscan stopped")
         }
     }
 
@@ -389,10 +388,10 @@ class BluetoothCentralManager(private val context: Context) {
         if (isScanning) {
             if (bluetoothScanner != null) {
                 bluetoothScanner?.stopScan(currentCallback)
-                Timber.i("scan stopped")
+                Logger.i(TAG, "scan stopped")
             }
         } else {
-            Timber.i("no scan to stop because no scan is running")
+            Logger.i(TAG, "no scan to stop because no scan is running")
         }
         currentCallback = null
         currentFilters = null
@@ -445,7 +444,7 @@ class BluetoothCentralManager(private val context: Context) {
             // Check if the peripheral is cached or not. If not, issue a warning because connection may fail
             // This is because Android will guess the address type and when incorrect it will fail
             if (peripheral.isUncached) {
-                Timber.w("peripheral with address '%s' is not in the Bluetooth cache, hence connection may fail", peripheral.address)
+                Logger.w(TAG, "peripheral with address '%s' is not in the Bluetooth cache, hence connection may fail", peripheral.address)
             }
 
             scannedPeripherals.remove(peripheral.address)
@@ -466,7 +465,7 @@ class BluetoothCentralManager(private val context: Context) {
 
             // Check if the peripheral is uncached and start autoConnectPeripheralByScan
             if (peripheral.isUncached) {
-                Timber.d("peripheral with address '%s' not in Bluetooth cache, autoconnecting by scanning", peripheral.address)
+                Logger.d(TAG, "peripheral with address '%s' not in Bluetooth cache, autoconnecting by scanning", peripheral.address)
                 scannedPeripherals.remove(peripheral.address)
                 unconnectedPeripherals[peripheral.address] = peripheral
                 autoConnectPeripheralByScan(peripheral.address, NULL())
@@ -481,24 +480,24 @@ class BluetoothCentralManager(private val context: Context) {
 
     private fun checkPeripheralStatus(peripheral: BluetoothPeripheral) {
         if (connectedPeripherals.containsKey(peripheral.address)) {
-            Timber.e("already connected to %s'", peripheral.address)
+            Logger.e(TAG, "already connected to %s'", peripheral.address)
             throw ConnectionFailedException(HciStatus.CONNECTION_ALREADY_EXISTS)
         }
 
         if (unconnectedPeripherals.containsKey(peripheral.address)) {
-            Timber.e("already issued autoconnect for '%s' ", peripheral.address)
+            Logger.e(TAG, "already issued autoconnect for '%s' ", peripheral.address)
             throw ConnectionFailedException(HciStatus.COMMAND_DISALLOWED)
         }
 
         if (peripheral.type == PeripheralType.CLASSIC) {
-            Timber.e("peripheral does not support Bluetooth LE")
+            Logger.e(TAG, "peripheral does not support Bluetooth LE")
             throw ConnectionFailedException(HciStatus.UNSUPPORTED_PARAMETER_VALUE)
         }
     }
 
     private fun autoConnectPeripheralByScan(peripheralAddress: String, peripheralCallback: BluetoothPeripheralCallback) {
         if (reconnectPeripheralAddresses.contains(peripheralAddress)) {
-            Timber.w("peripheral already on list for reconnection")
+            Logger.w(TAG, "peripheral already on list for reconnection")
             return
         }
         reconnectPeripheralAddresses.add(peripheralAddress)
@@ -526,7 +525,7 @@ class BluetoothCentralManager(private val context: Context) {
             reconnectPeripheralAddresses.remove(peripheralAddress)
             unconnectedPeripherals.remove(peripheralAddress)
             stopAutoconnectScan()
-            Timber.d("cancelling autoconnect for %s", peripheralAddress)
+            Logger.d(TAG, "cancelling autoconnect for %s", peripheralAddress)
             scope.launch { resultCentralManagerCallback.onDisconnectedPeripheral(peripheral, HciStatus.SUCCESS) }
 
             // If there are any devices left, restart the reconnection scan
@@ -541,7 +540,7 @@ class BluetoothCentralManager(private val context: Context) {
             currentCentralManagerCallback = resultCentralManagerCallback
             peripheral.cancelConnection()
         } else {
-            Timber.e("cannot cancel connection to unknown peripheral %s", peripheralAddress)
+            Logger.e(TAG, "cannot cancel connection to unknown peripheral %s", peripheralAddress)
             throw IllegalArgumentException("tyring to disconnect peripheral outside of library")
         }
     }
@@ -624,7 +623,7 @@ class BluetoothCentralManager(private val context: Context) {
             if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
                 return true
             }
-            Timber.e("BLE not supported")
+            Logger.e(TAG, "BLE not supported")
             return false
         }
 
@@ -638,7 +637,7 @@ class BluetoothCentralManager(private val context: Context) {
             if (bluetoothAdapter.isEnabled) {
                 return true
             }
-            Timber.e("Bluetooth disabled")
+            Logger.e(TAG, "Bluetooth disabled")
             return false
         }
 
@@ -646,12 +645,12 @@ class BluetoothCentralManager(private val context: Context) {
         val targetSdkVersion = context.applicationInfo.targetSdkVersion
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && targetSdkVersion >= Build.VERSION_CODES.Q) {
             if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                Timber.e("no ACCESS_FINE_LOCATION permission, cannot scan")
+                Logger.e(TAG, "no ACCESS_FINE_LOCATION permission, cannot scan")
                 false
             } else true
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                Timber.e("no ACCESS_COARSE_LOCATION permission, cannot scan")
+                Logger.e(TAG, "no ACCESS_COARSE_LOCATION permission, cannot scan")
                 false
             } else true
         } else {
@@ -666,7 +665,7 @@ class BluetoothCentralManager(private val context: Context) {
     private fun setScanTimer() {
         cancelTimeoutTimer()
         timeoutRunnable = Runnable {
-            Timber.d("scanning timeout, restarting scan")
+            Logger.d(TAG, "scanning timeout, restarting scan")
             val callback = currentCallback
             val filters = currentFilters
             stopScan()
@@ -699,7 +698,7 @@ class BluetoothCentralManager(private val context: Context) {
     private fun setAutoConnectTimer() {
         cancelAutoConnectTimer()
         autoConnectRunnable = Runnable {
-            Timber.d("autoconnect scan timeout, restarting scan")
+            Logger.d(TAG, "autoconnect scan timeout, restarting scan")
 
             // Stop previous autoconnect scans if any
             if (autoConnectScanner != null) {
@@ -737,11 +736,11 @@ class BluetoothCentralManager(private val context: Context) {
      */
     fun setPinCodeForPeripheral(peripheralAddress: String, pin: String): Boolean {
         if (!BluetoothAdapter.checkBluetoothAddress(peripheralAddress)) {
-            Timber.e("%s is not a valid address. Make sure all alphabetic characters are uppercase.", peripheralAddress)
+            Logger.e(TAG, "%s is not a valid address. Make sure all alphabetic characters are uppercase.", peripheralAddress)
             return false
         }
         if (pin.length != 6) {
-            Timber.e("%s is not 6 digits long", pin)
+            Logger.e(TAG, "%s is not 6 digits long", pin)
             return false
         }
         pinCodes[peripheralAddress] = pin
@@ -777,11 +776,11 @@ class BluetoothCentralManager(private val context: Context) {
                 val method = peripheralToUnBond.javaClass.getMethod("removeBond", null)
                 val result = method.invoke(peripheralToUnBond, null as Array<Any?>?) as Boolean
                 if (result) {
-                    Timber.i("Succesfully removed bond for '%s'", peripheralToUnBond.name)
+                    Logger.i(TAG, "Succesfully removed bond for '%s'", peripheralToUnBond.name)
                 }
                 result
             } catch (e: Exception) {
-                Timber.i("could not remove bond")
+                Logger.i(TAG, "could not remove bond")
                 e.printStackTrace()
                 false
             }
@@ -803,7 +802,7 @@ class BluetoothCentralManager(private val context: Context) {
             bluetoothAdapter.startDiscovery()
             scope.launch {
                 delay(1000)
-                Timber.d("popup hack completed")
+                Logger.d(TAG, "popup hack completed")
                 bluetoothAdapter.cancelDiscovery()
             }
         }
@@ -813,7 +812,7 @@ class BluetoothCentralManager(private val context: Context) {
      * Some phones, like Google/Pixel phones, don't automatically disconnect devices so this method does it manually
      */
     private fun cancelAllConnectionsWhenBluetoothOff() {
-        Timber.d("disconnect all peripherals because bluetooth is off")
+        Logger.d(TAG, "disconnect all peripherals because bluetooth is off")
         // Call cancelConnection for connected peripherals
         for (peripheral in connectedPeripherals.values) {
             peripheral.disconnectWhenBluetoothOff()
@@ -836,7 +835,7 @@ class BluetoothCentralManager(private val context: Context) {
     private fun startDisconnectionTimer() {
         cancelDisconnectionTimer()
         disconnectRunnable = Runnable {
-            Timber.e("bluetooth turned off but no automatic disconnects happening, so doing it ourselves")
+            Logger.e(TAG, "bluetooth turned off but no automatic disconnects happening, so doing it ourselves")
             cancelAllConnectionsWhenBluetoothOff()
             disconnectRunnable = null
         }
@@ -874,7 +873,7 @@ class BluetoothCentralManager(private val context: Context) {
                     expectingBluetoothOffDisconnects = true
                     startDisconnectionTimer()
                 }
-                Timber.d("bluetooth turned off")
+                Logger.d(TAG, "bluetooth turned off")
             }
             BluetoothAdapter.STATE_TURNING_OFF -> {
                 expectingBluetoothOffDisconnects = true
@@ -886,20 +885,29 @@ class BluetoothCentralManager(private val context: Context) {
                 currentCallback = null
                 currentFilters = null
                 autoConnectScanner = null
-                Timber.d("bluetooth turning off")
+                Logger.d(TAG, "bluetooth turning off")
             }
             BluetoothAdapter.STATE_ON -> {
                 expectingBluetoothOffDisconnects = false
-                Timber.d("bluetooth turned on")
+                Logger.d(TAG, "bluetooth turned on")
             }
             BluetoothAdapter.STATE_TURNING_ON -> {
                 expectingBluetoothOffDisconnects = false
-                Timber.d("bluetooth turning on")
+                Logger.d(TAG, "bluetooth turning on")
             }
         }
     }
 
+    fun disableLogging(): Unit {
+        Logger.enabled = false
+    }
+
+    fun enableLogging(): Unit {
+        Logger.enabled = false
+    }
+
     companion object {
+        private val TAG = BluetoothCentralManager::class.simpleName.toString()
         private const val SCAN_TIMEOUT = 180000L
         private const val SCAN_RESTART_DELAY = 1000L
         private const val MAX_CONNECTION_RETRIES = 1
@@ -916,7 +924,6 @@ class BluetoothCentralManager(private val context: Context) {
      * @param handler                  Handler to use for callbacks.
      */
     init {
-        bluetoothAdapter = Objects.requireNonNull(BluetoothAdapter.getDefaultAdapter(), "no bluetooth adapter found")
         autoConnectScanSettings = getScanSettings(ScanMode.LOW_POWER)
         scanSettings = getScanSettings(ScanMode.LOW_LATENCY)
 

@@ -35,7 +35,6 @@ import android.os.Handler
 import android.os.Looper
 import com.welie.blessed.BluetoothBytesParser.Companion.bytes2String
 import com.welie.blessed.BluetoothBytesParser.Companion.mergeArrays
-import timber.log.Timber
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -81,13 +80,13 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
                     handleDeviceDisconnected(device)
                 }
             } else {
-                Timber.i("Device '%s' disconnected with status %d", device.name, status)
+                Logger.i(TAG, "Device '%s' disconnected with status %d", device.name, status)
                 handleDeviceDisconnected(device)
             }
         }
 
         private fun handleDeviceConnected(device: BluetoothDevice) {
-            Timber.i("Central '%s' (%s) connected", device.name, device.address)
+            Logger.i(TAG, "Central '%s' (%s) connected", device.name, device.address)
             val bluetoothCentral = BluetoothCentral(device.address, device.name)
             connectedCentralsMap[bluetoothCentral.address] = bluetoothCentral
             mainHandler.post { callback.onCentralConnected(bluetoothCentral) }
@@ -95,7 +94,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
 
         private fun handleDeviceDisconnected(device: BluetoothDevice) {
             val bluetoothCentral = getCentral(device)
-            Timber.i("Central '%s' (%s) disconnected", bluetoothCentral.getName(), bluetoothCentral.address)
+            Logger.i(TAG, "Central '%s' (%s) disconnected", bluetoothCentral.getName(), bluetoothCentral.address)
             mainHandler.post { callback.onCentralDisconnected(bluetoothCentral) }
             removeCentral(device)
         }
@@ -106,7 +105,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         }
 
         override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic) {
-            Timber.i("read request for characteristic <%s> with offset %d", characteristic.uuid, offset)
+            Logger.i(TAG, "read request for characteristic <%s> with offset %d", characteristic.uuid, offset)
             val bluetoothCentral = getCentral(device)
             mainHandler.post { // Call onCharacteristic before any responses are sent, even if it is a long read
                 if (offset == 0) {
@@ -128,7 +127,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
             offset: Int,
             value: ByteArray
         ) {
-            Timber.i("write characteristic %s request <%s> offset %d for <%s>", if (responseNeeded) "WITH_RESPONSE" else "WITHOUT_RESPONSE", bytes2String(value), offset, characteristic.uuid)
+            Logger.i(TAG, "write characteristic %s request <%s> offset %d for <%s>", if (responseNeeded) "WITH_RESPONSE" else "WITHOUT_RESPONSE", bytes2String(value), offset, characteristic.uuid)
             val safeValue = nonnullOf(value)
             val bluetoothCentral = getCentral(device)
             mainHandler.post {
@@ -157,7 +156,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         }
 
         override fun onDescriptorReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, descriptor: BluetoothGattDescriptor) {
-            Timber.i("read request for descriptor <%s> with offset %d", descriptor.uuid, offset)
+            Logger.i(TAG, "read request for descriptor <%s> with offset %d", descriptor.uuid, offset)
             val bluetoothCentral = getCentral(device)
             mainHandler.post { // Call onDescriptorRead before any responses are sent, even if it is a long read
                 if (offset == 0) {
@@ -181,7 +180,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         ) {
             val safeValue = nonnullOf(value)
             val characteristic = Objects.requireNonNull(descriptor.characteristic, "Descriptor does not have characteristic")
-            Timber.i("write descriptor %s request <%s> offset %d for <%s>", if (responseNeeded) "WITH_RESPONSE" else "WITHOUT_RESPONSE", bytes2String(value), offset, descriptor.uuid)
+            Logger.i(TAG, "write descriptor %s request <%s> offset %d for <%s>", if (responseNeeded) "WITH_RESPONSE" else "WITHOUT_RESPONSE", bytes2String(value), offset, descriptor.uuid)
             val bluetoothCentral = getCentral(device)
             mainHandler.post {
                 var status = GattStatus.SUCCESS
@@ -214,10 +213,10 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
                     if (Arrays.equals(safeValue, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
                         || Arrays.equals(safeValue, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
                     ) {
-                        Timber.i("notifying enabled for <%s>", characteristic.uuid)
+                        Logger.i(TAG, "notifying enabled for <%s>", characteristic.uuid)
                         callback.onNotifyingEnabled(bluetoothCentral, characteristic)
                     } else {
-                        Timber.i("notifying disabled for <%s>", characteristic.uuid)
+                        Logger.i(TAG, "notifying disabled for <%s>", characteristic.uuid)
                         callback.onNotifyingDisabled(bluetoothCentral, characteristic)
                     }
                 }
@@ -286,7 +285,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         }
 
         override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
-            Timber.i("new MTU: %d", mtu)
+            Logger.i(TAG, "new MTU: %d", mtu)
             val bluetoothCentral = getCentral(device)
             bluetoothCentral.currentMtu = mtu
         }
@@ -302,19 +301,19 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
     @JvmField
     val advertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-            Timber.i("advertising started")
+            Logger.i(TAG, "advertising started")
             mainHandler.post { callback.onAdvertisingStarted(settingsInEffect) }
         }
 
         override fun onStartFailure(errorCode: Int) {
             val advertiseError = AdvertiseError.fromValue(errorCode)
-            Timber.e("advertising failed with error '%s'", advertiseError)
+            Logger.e(TAG, "advertising failed with error '%s'", advertiseError)
             mainHandler.post { callback.onAdvertiseFailure(advertiseError) }
         }
     }
 
     protected fun onAdvertisingStopped() {
-        Timber.i("advertising stopped")
+        Logger.i(TAG, "advertising stopped")
         mainHandler.post { callback.onAdvertisingStopped() }
     }
 
@@ -343,7 +342,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
      */
     fun startAdvertising(settings: AdvertiseSettings, advertiseData: AdvertiseData, scanResponse: AdvertiseData) {
         if (!bluetoothAdapter.isMultipleAdvertisementSupported) {
-            Timber.e("device does not support advertising")
+            Logger.e(TAG, "device does not support advertising")
         } else {
             bluetoothLeAdvertiser.startAdvertising(settings, advertiseData, scanResponse, advertiseCallback)
         }
@@ -377,14 +376,14 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         Objects.requireNonNull(service, SERVICE_IS_NULL)
         val result = commandQueue.add(Runnable {
             if (!bluetoothGattServer.addService(service)) {
-                Timber.e("adding service %s failed", service.uuid)
+                Logger.e(TAG, "adding service %s failed", service.uuid)
                 completedCommand()
             }
         })
         if (result) {
             nextCommand()
         } else {
-            Timber.e("could not enqueue add service command")
+            Logger.e(TAG, "could not enqueue add service command")
         }
         return result
     }
@@ -451,14 +450,14 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
             currentNotifyCharacteristic = characteristic
             characteristic.value = value
             if (!bluetoothGattServer.notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
-                Timber.e("notifying characteristic changed failed for <%s>", characteristic.uuid)
+                Logger.e(TAG, "notifying characteristic changed failed for <%s>", characteristic.uuid)
                 completedCommand()
             }
         })
         if (result) {
             nextCommand()
         } else {
-            Timber.e("could not enqueue notify command")
+            Logger.e(TAG, "could not enqueue notify command")
         }
         return result
     }
@@ -475,7 +474,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
 
     private fun cancelConnection(bluetoothDevice: BluetoothDevice) {
         Objects.requireNonNull(bluetoothDevice, DEVICE_IS_NULL)
-        Timber.i("cancelConnection with '%s' (%s)", bluetoothDevice.name, bluetoothDevice.address)
+        Logger.i(TAG, "cancelConnection with '%s' (%s)", bluetoothDevice.name, bluetoothDevice.address)
         bluetoothGattServer.cancelConnection(bluetoothDevice)
     }
 
@@ -521,7 +520,8 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
                 try {
                     bluetoothCommand.run()
                 } catch (ex: Exception) {
-                    Timber.e(ex, "command exception")
+                    Logger.e(TAG,"command exception")
+                    Logger.e(TAG, ex.toString())
                     completedCommand()
                 }
             }
@@ -560,12 +560,12 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
     private fun handleAdapterState(state: Int) {
         when (state) {
             BluetoothAdapter.STATE_OFF -> {
-                Timber.d("bluetooth turned off")
+                Logger.d(TAG, "bluetooth turned off")
                 cancelAllConnectionsWhenBluetoothOff()
             }
-            BluetoothAdapter.STATE_TURNING_OFF -> Timber.d("bluetooth turning off")
-            BluetoothAdapter.STATE_ON -> Timber.d("bluetooth turned on")
-            BluetoothAdapter.STATE_TURNING_ON -> Timber.d("bluetooth turning on")
+            BluetoothAdapter.STATE_TURNING_OFF -> Logger.d(TAG, "bluetooth turning off")
+            BluetoothAdapter.STATE_ON -> Logger.d(TAG, "bluetooth turned on")
+            BluetoothAdapter.STATE_TURNING_ON -> Logger.d(TAG, "bluetooth turning on")
         }
     }
 
@@ -618,7 +618,8 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
     }
 
     companion object {
-        val CCC_DESCRIPTOR_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        private val TAG = BluetoothPeripheralManager::class.simpleName.toString()
+        val CCC_DESCRIPTOR_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
         private const val SERVICE_IS_NULL = "service is null"
         private const val CHARACTERISTIC_IS_NULL = "characteristic is null"
         private const val DEVICE_IS_NULL = "device is null"
