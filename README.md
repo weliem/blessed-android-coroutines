@@ -135,9 +135,9 @@ suspend fun readDescriptor(descriptor: BluetoothGattDescriptor): ByteArray
 suspend fun writeDescriptor(descriptor: BluetoothGattDescriptor, value: ByteArray): ByteArray
 ```
 
-Both methods are **suspending** and will return the result of the operation. The method `readCharacteristic` will return the ByteArray that has been read. It will throw `IllegalArgumentException` if the characteristic you provide is not readable, and it will throw `GattException` if the read was not succesful.
+All methods are **suspending** and will return the result of the operation. The method `readCharacteristic` will return the ByteArray that has been read. It will throw `IllegalArgumentException` if the characteristic you provide is not readable, and it will throw `GattException` if the read was not succesful.
 
-If you want to write to a characteristic, you need to provide a `value` and a `writeType`. The `writeType` is usually `WITH_RESPONSE` or `WITHOUT_RESPONSE`. If the write type you specify is not supported by the characteristic it will throw `IllegalArgumentException`.
+If you want to write to a characteristic, you need to provide a `value` and a `writeType`. The `writeType` is usually `WITH_RESPONSE` or `WITHOUT_RESPONSE`. If the write type you specify is not supported by the characteristic it will throw `IllegalArgumentException`. The method will return the bytes that were written or an empty byte array in case something went wrong.
 
 There are 2 ways to specify which characteristic to use in the read/write method:
 - Using its `serviceUUID` and `characteristicUUID`
