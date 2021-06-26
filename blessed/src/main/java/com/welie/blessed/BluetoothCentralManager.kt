@@ -707,7 +707,7 @@ class BluetoothCentralManager(private val context: Context) {
             }
 
             // Restart the auto connect scan and timer
-            mainHandler.postDelayed({ scanForAutoConnectPeripherals() }, SCAN_RESTART_DELAY.toLong())
+            mainHandler.postDelayed({ scanForAutoConnectPeripherals() }, SCAN_RESTART_DELAY)
         }
         mainHandler.postDelayed(autoConnectRunnable!!, SCAN_TIMEOUT)
     }

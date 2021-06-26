@@ -97,7 +97,7 @@ The method `autoConnectPeripheralsBatch` is for re-connecting to multiple periph
 
 If you know the mac address of your peripheral you can obtain a `BluetoothPeripheral` object using:
 ```kotlin
-val peripheral = central.getPeripheral("CF:A9:BA:D9:62:9E");
+val peripheral = central.getPeripheral("CF:A9:BA:D9:62:9E")
 ```
 
 After issuing a connect call, you can observe the connection state of peripherals:

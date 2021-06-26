@@ -4,8 +4,6 @@ import com.welie.blessed.BluetoothBytesParser
 import com.welie.blessed.BluetoothBytesParser.Companion.FORMAT_SFLOAT
 import com.welie.blessed.BluetoothBytesParser.Companion.FORMAT_UINT16
 import com.welie.blessed.BluetoothBytesParser.Companion.FORMAT_UINT8
-import java.io.Serializable
-import java.nio.ByteOrder
 import java.util.*
 
 data class PulseOximeterContinuousMeasurement(

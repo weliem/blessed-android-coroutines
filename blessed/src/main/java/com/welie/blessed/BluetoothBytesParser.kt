@@ -35,7 +35,7 @@ class BluetoothBytesParser (
     /**
      * Create a BluetoothBytesParser that does not contain a byte array and sets the byteOrder.
      */
-    constructor(byteOrder: ByteOrder) : this(ByteArray(0), 0, byteOrder) {}
+    constructor(byteOrder: ByteOrder) : this(ByteArray(0), 0, byteOrder)
 
     /**
      * Create a BluetoothBytesParser and set the byte array and byteOrder.
@@ -47,7 +47,7 @@ class BluetoothBytesParser (
     /**
      * Create a BluetoothBytesParser that does not contain a byte array and sets the byteOrder to LITTLE_ENDIAN.
      */
-    constructor(value: ByteArray, byteOrder: ByteOrder) : this(value, 0, byteOrder) {}
+    constructor(value: ByteArray, byteOrder: ByteOrder) : this(value, 0, byteOrder)
 
     /**
      * Return an Integer value of the specified type. This operation will automatically advance the internal offset to the next position.
