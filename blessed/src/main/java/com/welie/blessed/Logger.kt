@@ -18,8 +18,8 @@ internal object Logger {
     }
 
     /** Log an verbose message with optional format args.  */
-    fun v(tag: String, msg: String, vararg args: Any?) {
-        triggerLogger(Log.VERBOSE, tag, msg, args)
+    fun v(tag: String, msg: String, vararg args: Any) {
+        triggerLogger(Log.VERBOSE, tag, msg, *args)
     }
 
     /**
@@ -34,8 +34,8 @@ internal object Logger {
     }
 
     /** Log an debug message with optional format args.  */
-    fun d(tag: String, msg: String, vararg args: Any?) {
-        triggerLogger(Log.DEBUG, tag, msg, args)
+    fun d(tag: String, msg: String, vararg args: Any) {
+        triggerLogger(Log.DEBUG, tag, msg, *args)
     }
 
     /**
@@ -50,8 +50,8 @@ internal object Logger {
     }
 
     /** Log an info message with optional format args.  */
-    fun i(tag: String, msg: String, vararg args: Any?) {
-        triggerLogger(Log.INFO, tag, msg, args)
+    fun i(tag: String, msg: String, vararg args: Any) {
+        triggerLogger(Log.INFO, tag, msg, *args)
     }
 
     /**
@@ -66,8 +66,8 @@ internal object Logger {
     }
 
     /** Log an warn message with optional format args.  */
-    fun w(tag: String, msg: String, vararg args: Any?) {
-        triggerLogger(Log.WARN, tag, msg, args)
+    fun w(tag: String, msg: String, vararg args: Any) {
+        triggerLogger(Log.WARN, tag, msg, *args)
     }
 
     /**
@@ -82,8 +82,8 @@ internal object Logger {
     }
 
     /** Log an error message with optional format args.  */
-    fun e(tag: String, msg: String, vararg args: Any?) {
-        triggerLogger(Log.ERROR, tag, msg, args)
+    fun e(tag: String, msg: String, vararg args: Any) {
+        triggerLogger(Log.ERROR, tag, msg, *args)
     }
 
     /**
@@ -97,8 +97,8 @@ internal object Logger {
     }
 
     /** Log an wtf message with optional format args.  */
-    fun wtf(tag: String, msg: String, vararg args: Any?) {
-        triggerLogger(Log.ASSERT, tag, msg, args)
+    fun wtf(tag: String, msg: String, vararg args: Any) {
+        triggerLogger(Log.ASSERT, tag, msg, *args)
     }
 
     private fun triggerLogger(priority: Int, tag: String, msg: String, vararg args: Any) {
