@@ -320,7 +320,7 @@ class BluetoothPeripheral internal constructor(
 
     private fun connectionStateChangeUnsuccessful(status: HciStatus, previousState: Int, newState: Int) {
         cancelPendingServiceDiscovery()
-        val servicesDiscovered = !services.isEmpty()
+        val servicesDiscovered = services.isNotEmpty()
 
         // See if the initial connection failed
         if (previousState == BluetoothProfile.STATE_CONNECTING) {

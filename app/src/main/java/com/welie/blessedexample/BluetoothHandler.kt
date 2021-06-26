@@ -93,8 +93,8 @@ internal class BluetoothHandler private constructor(private val context: Context
     }
 
     private suspend fun setupCTSnotifications(peripheral: BluetoothPeripheral) {
-        peripheral.getCharacteristic(CTS_SERVICE_UUID, CURRENT_TIME_CHARACTERISTIC_UUID)?.let {
-            peripheral.observe(it) { value ->
+        peripheral.getCharacteristic(CTS_SERVICE_UUID, CURRENT_TIME_CHARACTERISTIC_UUID)?.let { currentTimeCharacteristic ->
+            peripheral.observe(currentTimeCharacteristic) { value ->
                 val parser = BluetoothBytesParser(value)
                 val currentTime = parser.dateTime
                 Timber.i("Received device time: %s", currentTime)
@@ -110,7 +110,9 @@ internal class BluetoothHandler private constructor(private val context: Context
                         val interval = Math.abs(Calendar.getInstance().timeInMillis - currentTime.time)
                         if (currentTimeCounter == 1 && interval > 10 * 60 * 1000) {
                             parser.setCurrentTime(Calendar.getInstance())
-                            // peripheral.writeCharacteristic(characteristic, parser.value, WriteType.WITH_RESPONSE)
+                            scope.launch {
+                                peripheral.writeCharacteristic(it, parser.value, WriteType.WITH_RESPONSE)
+                            }
                         }
                     }
                 }
