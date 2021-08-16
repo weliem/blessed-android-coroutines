@@ -1,6 +1,7 @@
 # BLESSED for Android with Coroutines - BLE made easy
 
 [![](https://jitpack.io/v/weliem/blessed-android-coroutines.svg)](https://jitpack.io/#weliem/blessed-android-coroutines)
+[![Downloads](https://jitpack.io/v/weliem/blessed-android-coroutines/month.svg)](https://jitpack.io/#weliem/blessed-android-coroutines)
 [![Android Build](https://github.com/weliem/blessed-android-coroutines/actions/workflows/gradle.yml/badge.svg)](https://github.com/weliem/blessed-android-coroutines/actions/workflows/gradle.yml)
 
 BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and higher, that makes working with BLE on Android very easy. It is powered by Kotlin's **Coroutines** and turns asynchronous GATT methods into synchronous methods! It is based on the [Blessed](https://github.com/weliem/blessed-android) Java library and has been rewritten in Kotlin using Coroutines.
