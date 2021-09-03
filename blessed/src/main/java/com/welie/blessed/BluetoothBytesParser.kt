@@ -138,6 +138,13 @@ class BluetoothBytesParser (
             FORMAT_UINT16 -> return if (byteOrder == LITTLE_ENDIAN) unsignedBytesToInt(value[offset], value[offset + 1]) else unsignedBytesToInt(
                 value[offset + 1], value[offset]
             )
+            FORMAT_UINT24 -> return if (byteOrder == LITTLE_ENDIAN) unsignedBytesToInt(
+                value[offset], value[offset + 1],
+                value[offset + 2], 0.toByte()
+            ) else unsignedBytesToInt(
+                0.toByte(), value[offset + 2],
+                value[offset + 1], value[offset]
+            )
             FORMAT_UINT32 -> return if (byteOrder == LITTLE_ENDIAN) unsignedBytesToInt(
                 value[offset], value[offset + 1],
                 value[offset + 2], value[offset + 3]
@@ -156,6 +163,17 @@ class BluetoothBytesParser (
                     value[offset + 1],
                     value[offset]
                 ), 16
+            )
+            FORMAT_SINT24 -> return if (byteOrder == LITTLE_ENDIAN) unsignedToSigned(
+                unsignedBytesToInt(
+                    value[offset],
+                    value[offset + 1], value[offset + 2], 0.toByte()
+                ), 24
+            ) else unsignedToSigned(
+                unsignedBytesToInt(
+                    0.toByte(),
+                    value[offset + 2], value[offset + 1], value[offset]
+                ), 24
             )
             FORMAT_SINT32 -> return if (byteOrder == LITTLE_ENDIAN) unsignedToSigned(
                 unsignedBytesToInt(
@@ -332,6 +350,27 @@ class BluetoothBytesParser (
                 this.value[index++] = (tempValue and 0xFF).toByte()
                 this.value[index] = (tempValue shr 8 and 0xFF).toByte()
             } else {
+                this.value[index++] = (tempValue shr 8 and 0xFF).toByte()
+                this.value[index] = (tempValue and 0xFF).toByte()
+            }
+            FORMAT_SINT24 -> {
+                tempValue = intToSignedBits(value, 24)
+                if (byteOrder == LITTLE_ENDIAN) {
+                    this.value[index++] = (tempValue and 0xFF).toByte()
+                    this.value[index++] = (tempValue shr 8 and 0xFF).toByte()
+                    this.value[index] = (tempValue shr 16 and 0xFF).toByte()
+                } else {
+                    this.value[index++] = (tempValue shr 16 and 0xFF).toByte()
+                    this.value[index++] = (tempValue shr 8 and 0xFF).toByte()
+                    this.value[index] = (tempValue and 0xFF).toByte()
+                }
+            }
+            FORMAT_UINT24 -> if (byteOrder == LITTLE_ENDIAN) {
+                this.value[index++] = (tempValue and 0xFF).toByte()
+                this.value[index++] = (tempValue shr 8 and 0xFF).toByte()
+                this.value[index] = (tempValue shr 16 and 0xFF).toByte()
+            } else {
+                this.value[index++] = (tempValue shr 16 and 0xFF).toByte()
                 this.value[index++] = (tempValue shr 8 and 0xFF).toByte()
                 this.value[index] = (tempValue and 0xFF).toByte()
             }
@@ -639,6 +678,11 @@ class BluetoothBytesParser (
         const val FORMAT_UINT16 = 0x12
 
         /**
+         * Characteristic value format type uint24
+         */
+        const val FORMAT_UINT24 = 0x13
+
+        /**
          * Characteristic value format type uint32
          */
         const val FORMAT_UINT32 = 0x14
@@ -652,6 +696,11 @@ class BluetoothBytesParser (
          * Characteristic value format type sint16
          */
         const val FORMAT_SINT16 = 0x22
+
+        /**
+         * Characteristic value format type sint24
+         */
+        const val FORMAT_SINT24 = 0x23
 
         /**
          * Characteristic value format type sint32
