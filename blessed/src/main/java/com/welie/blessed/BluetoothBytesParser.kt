@@ -142,8 +142,8 @@ class BluetoothBytesParser (
                 value[offset], value[offset + 1],
                 value[offset + 2], 0.toByte()
             ) else unsignedBytesToInt(
-                0.toByte(), value[offset + 2],
-                value[offset + 1], value[offset]
+                value[offset + 2], value[offset + 1], 
+                value[offset], 0.toByte()
             )
             FORMAT_UINT32 -> return if (byteOrder == LITTLE_ENDIAN) unsignedBytesToInt(
                 value[offset], value[offset + 1],
@@ -171,8 +171,8 @@ class BluetoothBytesParser (
                 ), 24
             ) else unsignedToSigned(
                 unsignedBytesToInt(
-                    0.toByte(),
-                    value[offset + 2], value[offset + 1], value[offset]
+                    value[offset + 2], 
+                    value[offset + 1], value[offset], 0.toByte()
                 ), 24
             )
             FORMAT_SINT32 -> return if (byteOrder == LITTLE_ENDIAN) unsignedToSigned(
