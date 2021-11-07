@@ -3,6 +3,7 @@ package com.welie.blessedexample
 import android.Manifest
 import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.*
 import android.content.pm.PackageManager
 import android.location.LocationManager
@@ -27,15 +28,23 @@ class MainActivity : AppCompatActivity() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var measurementValue: TextView? = null
     private val dateFormat: DateFormat = SimpleDateFormat("dd-MM-yyyy HH:mm:ss", Locale.ENGLISH)
-    private val enableBluetoothRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (it.resultCode == RESULT_OK) {
-            // Bluetooth has been enabled
-            checkPermissions()
-        } else {
-            // Bluetooth has not been enabled, try again
-            askToEnableBluetooth()
+    private val enableBluetoothRequest =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            if (it.resultCode == RESULT_OK) {
+                // Bluetooth has been enabled
+                checkPermissions()
+            } else {
+                // Bluetooth has not been enabled, try again
+                askToEnableBluetooth()
+            }
         }
+
+    private val bluetoothManager by lazy {
+        applicationContext
+            .getSystemService(BLUETOOTH_SERVICE)
+                as BluetoothManager
     }
+
 
     private fun askToEnableBluetooth() {
         val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
@@ -46,12 +55,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         measurementValue = findViewById<View>(R.id.bloodPressureValue) as TextView
-        registerReceiver(locationServiceStateReceiver, IntentFilter(LocationManager.MODE_CHANGED_ACTION))
+        registerReceiver(
+            locationServiceStateReceiver,
+            IntentFilter(LocationManager.MODE_CHANGED_ACTION)
+        )
     }
 
     override fun onResume() {
         super.onResume()
-        if (BluetoothAdapter.getDefaultAdapter() != null) {
+        if (bluetoothManager.adapter != null) {
             if (!isBluetoothEnabled) {
                 askToEnableBluetooth()
             } else {
@@ -64,10 +76,9 @@ class MainActivity : AppCompatActivity() {
 
     private val isBluetoothEnabled: Boolean
         get() {
-            val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter() ?: return false
+            val bluetoothAdapter = bluetoothManager.adapter ?: return false
             return bluetoothAdapter.isEnabled
         }
-
 
 
     private fun initBluetoothHandler() {
@@ -179,10 +190,10 @@ class MainActivity : AppCompatActivity() {
             bluetoothHandler.weightChannel.consumeAsFlow().collect {
                 withContext(Dispatchers.Main) {
                     measurementValue!!.text = String.format(
-                            Locale.ENGLISH,
-                            "%.1f %s\n%s\n",
-                            it.weight, it.unit.toString(),
-                            dateFormat.format(it.timestamp ?: Calendar.getInstance())
+                        Locale.ENGLISH,
+                        "%.1f %s\n%s\n",
+                        it.weight, it.unit.toString(),
+                        dateFormat.format(it.timestamp ?: Calendar.getInstance())
                     )
                 }
             }
@@ -232,9 +243,17 @@ class MainActivity : AppCompatActivity() {
     private val requiredPermissions: Array<String>
         get() {
             val targetSdkVersion = applicationInfo.targetSdkVersion
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && targetSdkVersion >= Build.VERSION_CODES.Q) arrayOf(Manifest.permission.ACCESS_FINE_LOCATION) else arrayOf(
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
+            val arrayOfPermissions = emptyArray<String>()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                arrayOfPermissions + Manifest.permission.BLUETOOTH_SCAN
+            }
+            val locationPermission =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    Manifest.permission.ACCESS_FINE_LOCATION
+
+                } else Manifest.permission.ACCESS_COARSE_LOCATION
+
+            return arrayOfPermissions + locationPermission
         }
 
     private fun permissionsGranted() {
@@ -245,13 +264,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun areLocationServicesEnabled(): Boolean {
-        val locationManager = applicationContext.getSystemService(LOCATION_SERVICE) as LocationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            return locationManager.isLocationEnabled
+        val locationManager =
+            applicationContext.getSystemService(LOCATION_SERVICE) as LocationManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            locationManager.isLocationEnabled
         } else {
             val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-            val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-            return isGpsEnabled || isNetworkEnabled
+            val isNetworkEnabled =
+                locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+            isGpsEnabled || isNetworkEnabled
         }
     }
 
@@ -277,7 +298,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         // Check if all permission were granted
