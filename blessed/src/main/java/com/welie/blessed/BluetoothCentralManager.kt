@@ -25,9 +25,11 @@ package com.welie.blessed
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.bluetooth.le.*
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Context.BLUETOOTH_SERVICE
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -50,7 +52,7 @@ import kotlin.coroutines.suspendCoroutine
  */
 class BluetoothCentralManager(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val bluetoothAdapter: BluetoothAdapter = requireNotNull(BluetoothAdapter.getDefaultAdapter())
+    private val bluetoothAdapter: BluetoothAdapter
     private var bluetoothScanner: BluetoothLeScanner? = null
     private var autoConnectScanner: BluetoothLeScanner? = null
     private var currentCentralManagerCallback: BluetoothCentralManagerCallback = BluetoothCentralManagerCallback.NULL()
@@ -643,19 +645,23 @@ class BluetoothCentralManager(private val context: Context) {
 
     private fun permissionsGranted(): Boolean {
         val targetSdkVersion = context.applicationInfo.targetSdkVersion
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && targetSdkVersion >= Build.VERSION_CODES.Q) {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && targetSdkVersion >= Build.VERSION_CODES.S) {
+            if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
+                throw SecurityException("app does not have BLUETOOTH_SCAN permission, cannot start scan")
+            }
+            return if (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                throw SecurityException("app does not have BLUETOOTH_CONNECT permission, cannot connect")
+            } else true
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && targetSdkVersion >= Build.VERSION_CODES.Q) {
             if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 Logger.e(TAG, "no ACCESS_FINE_LOCATION permission, cannot scan")
                 false
             } else true
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        } else
             if (context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 Logger.e(TAG, "no ACCESS_COARSE_LOCATION permission, cannot scan")
                 false
             } else true
-        } else {
-            true
-        }
     }
 
     /**
@@ -924,6 +930,8 @@ class BluetoothCentralManager(private val context: Context) {
      * @param handler                  Handler to use for callbacks.
      */
     init {
+        val manager = context.getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothAdapter = manager.adapter
         autoConnectScanSettings = getScanSettings(ScanMode.LOW_POWER)
         scanSettings = getScanSettings(ScanMode.LOW_LATENCY)
 

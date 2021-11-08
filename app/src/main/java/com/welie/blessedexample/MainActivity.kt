@@ -243,22 +243,21 @@ class MainActivity : AppCompatActivity() {
     private val requiredPermissions: Array<String>
         get() {
             val targetSdkVersion = applicationInfo.targetSdkVersion
-            val arrayOfPermissions = emptyArray<String>()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                arrayOfPermissions + Manifest.permission.BLUETOOTH_SCAN
-            }
-            val locationPermission =
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    Manifest.permission.ACCESS_FINE_LOCATION
-
-                } else Manifest.permission.ACCESS_COARSE_LOCATION
-
-            return arrayOfPermissions + locationPermission
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && targetSdkVersion >= Build.VERSION_CODES.S) {
+                arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && targetSdkVersion >= Build.VERSION_CODES.Q) {
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+            } else arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
 
     private fun permissionsGranted() {
-        // Check if Location services are on because they are required to make scanning work
-        if (checkLocationServices()) {
+        // Check if Location services are on because they are required to make scanning work for SDK < 31
+        val targetSdkVersion = applicationInfo.targetSdkVersion
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && targetSdkVersion < Build.VERSION_CODES.S) {
+            if (checkLocationServices()) {
+                initBluetoothHandler()
+            }
+        } else {
             initBluetoothHandler()
         }
     }
