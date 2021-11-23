@@ -19,9 +19,10 @@ allprojects {
 }
 
 dependencies {
-        implementation 'com.github.weliem:blessed-android-coroutines:0.0.1'
+    implementation "com.github.weliem:blessed-android-coroutines:$version"
 }
 ```
+where `$version` is the latest published version in Jitpack [![](https://jitpack.io/v/weliem/blessed-android-coroutines.svg)](https://jitpack.io/#weliem/blessed-android-coroutines)
 
 ## Overview of classes
 
