@@ -1046,13 +1046,14 @@ class BluetoothPeripheral internal constructor(
     suspend fun observe(characteristic: BluetoothGattCharacteristic, callback: (value: ByteArray) -> Unit): Boolean =
         suspendCoroutine {
             try {
+                observeMap[characteristic] = callback
                 val result = setNotify(characteristic, true, object : BluetoothPeripheralCallback() {
                     override fun onNotificationStateUpdate(peripheral: BluetoothPeripheral, characteristic: BluetoothGattCharacteristic, status: GattStatus) {
                         if (status == GattStatus.SUCCESS) {
-                            observeMap[characteristic] = callback
                             Logger.d(TAG, "observing <${characteristic.uuid}> succeeded")
                             it.resume(true)
                         } else {
+                            observeMap.remove(characteristic)
                             it.resumeWithException(GattException(status))
                         }
                     }
@@ -1069,10 +1070,10 @@ class BluetoothPeripheral internal constructor(
     suspend fun stopObserving(characteristic: BluetoothGattCharacteristic): Boolean =
         suspendCoroutine {
             try {
+                observeMap.remove(characteristic)
                 val result = setNotify(characteristic, false, object : BluetoothPeripheralCallback() {
                     override fun onNotificationStateUpdate(peripheral: BluetoothPeripheral, characteristic: BluetoothGattCharacteristic, status: GattStatus) {
                         if (status == GattStatus.SUCCESS) {
-                            observeMap.remove(characteristic)
                             Logger.d(TAG, "stopped observing <${characteristic.uuid}>")
                             it.resume(true)
                         } else {
