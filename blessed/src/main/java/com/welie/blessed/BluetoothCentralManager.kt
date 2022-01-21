@@ -778,9 +778,8 @@ class BluetoothCentralManager(private val context: Context) {
         // Try to remove the bond
         return if (peripheralToUnBond != null) {
             try {
-                // TODO FIX THIS, automatic conversion gone wrong
-                val method = peripheralToUnBond.javaClass.getMethod("removeBond", null)
-                val result = method.invoke(peripheralToUnBond, null as Array<Any?>?) as Boolean
+                val method = peripheralToUnBond.javaClass.getMethod("removeBond")
+                val result = method.invoke(peripheralToUnBond) as Boolean
                 if (result) {
                     Logger.i(TAG, "Succesfully removed bond for '%s'", peripheralToUnBond.name)
                 }
