@@ -576,7 +576,7 @@ class BluetoothPeripheral internal constructor(
             state = BluetoothProfile.STATE_DISCONNECTING
             scope.launch {
                 if (state == BluetoothProfile.STATE_DISCONNECTING && bluetoothGatt != null) {
-                    bluetoothGatt!!.disconnect()
+                    bluetoothGatt?.disconnect()
                 }
             }
         } else {
@@ -810,7 +810,7 @@ class BluetoothPeripheral internal constructor(
         return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
-                if (bluetoothGatt!!.readCharacteristic(characteristic)) {
+                if (bluetoothGatt?.readCharacteristic(characteristic) == true) {
                     Logger.d(TAG, "reading characteristic <%s>", characteristic.uuid)
                     nrTries++
                 } else {
@@ -911,7 +911,7 @@ class BluetoothPeripheral internal constructor(
                     Logger.w(TAG, "value byte array is longer than allowed by MTU, write will fail if peripheral does not support long writes")
                 }
                 characteristic.value = bytesToWrite
-                if (bluetoothGatt?.writeCharacteristic(characteristic) ?: false) {
+                if (bluetoothGatt?.writeCharacteristic(characteristic) == true) {
                     Logger.d(TAG, "writing <%s> to characteristic <%s>", BluetoothBytesParser.bytes2String(bytesToWrite), characteristic.uuid)
                     nrTries++
                 } else {
