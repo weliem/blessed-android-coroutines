@@ -1,5 +1,6 @@
 package com.welie.blessedexample
 
+import android.bluetooth.BluetoothAdapter
 import android.content.Context
 import com.welie.blessed.*
 import kotlinx.coroutines.*
@@ -22,7 +23,7 @@ internal class BluetoothHandler private constructor(context: Context) {
     val weightChannel = Channel<WeightMeasurement>(UNLIMITED)
 
     private fun handlePeripheral(peripheral: BluetoothPeripheral) {
-        scope.launch(Dispatchers.IO) {
+        scope.launch {
             try {
                 val mtu = peripheral.requestMtu(185)
                 Timber.i("MTU is $mtu")
@@ -304,6 +305,12 @@ internal class BluetoothHandler private constructor(context: Context) {
                 }
                 else -> {
                 }
+            }
+        }
+
+        central.observeAdapterState { state ->
+            when(state) {
+                BluetoothAdapter.STATE_ON -> startScanning()
             }
         }
 

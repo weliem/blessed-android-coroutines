@@ -22,6 +22,7 @@
  */
 package com.welie.blessed
 
+import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.BluetoothGattDescriptor.*
 import android.content.BroadcastReceiver
@@ -46,6 +47,8 @@ import kotlin.coroutines.suspendCoroutine
  * This class is a wrapper around the [BluetoothDevice] and [BluetoothGatt] classes.
  * It takes care of operation queueing, some Android bugs, and provides several convenience functions.
  */
+@SuppressLint("MissingPermission")
+@Suppress("unused")
 class BluetoothPeripheral internal constructor(
     private val context: Context,
     private var device: BluetoothDevice,
@@ -286,10 +289,11 @@ class BluetoothPeripheral internal constructor(
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun discoverServices() {
         discoverJob = scope.launch {
             Logger.d(TAG, "discovering services of '%s'", name)
-            if (bluetoothGatt != null && bluetoothGatt!!.discoverServices()) {
+            if (bluetoothGatt != null && (bluetoothGatt?.discoverServices() == true)) {
                 discoveryStarted = true
             } else {
                 Logger.e(TAG, "discoverServices failed to start")
@@ -405,6 +409,7 @@ class BluetoothPeripheral internal constructor(
     }
 
     private val pairingRequestBroadcastReceiver: BroadcastReceiver = object : BroadcastReceiver() {
+        @SuppressLint("MissingPermission")
         override fun onReceive(context: Context, intent: Intent) {
             val receivedDevice = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE) ?: return
             if (!receivedDevice.address.equals(address, ignoreCase = true)) return
@@ -437,9 +442,16 @@ class BluetoothPeripheral internal constructor(
                 registerBondingBroadcastReceivers()
                 state = BluetoothProfile.STATE_CONNECTING
                 discoveryStarted = false
-                bluetoothGatt = device.connectGatt(context, false, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
-                connectTimestamp = SystemClock.elapsedRealtime()
-                startConnectionTimer(this@BluetoothPeripheral)
+                bluetoothGatt = try {
+                    device.connectGatt(context, false, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
+                } catch (e: SecurityException) {
+                    Logger.d(TAG, "exception")
+                    null
+                }
+                bluetoothGatt?.let {
+                    connectTimestamp = SystemClock.elapsedRealtime()
+                    startConnectionTimer(this@BluetoothPeripheral)
+                }
             }
         } else {
             Logger.e(TAG, "peripheral '%s' not yet disconnected, will not connect", name)
@@ -459,8 +471,15 @@ class BluetoothPeripheral internal constructor(
                 registerBondingBroadcastReceivers()
                 state = BluetoothProfile.STATE_CONNECTING
                 discoveryStarted = false
-                bluetoothGatt = device.connectGatt(context, true, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
-                connectTimestamp = SystemClock.elapsedRealtime()
+                bluetoothGatt = try {
+                    device.connectGatt(context, true, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
+                } catch (e: SecurityException) {
+                    Logger.d(TAG, "exception")
+                    null
+                }
+                bluetoothGatt?.let {
+                    connectTimestamp = SystemClock.elapsedRealtime()
+                }
             }
         } else {
             Logger.e(TAG, "peripheral '%s' not yet disconnected, will not connect", name)
@@ -482,6 +501,7 @@ class BluetoothPeripheral internal constructor(
      *
      * @return true if bonding was started/enqueued, false if not
      */
+
     fun createBond(): Boolean {
         // Check if we have a Gatt object
         if (bluetoothGatt == null) {
@@ -787,7 +807,7 @@ class BluetoothPeripheral internal constructor(
         require(characteristic.supportsReading()) { "characteristic does not have read property" }
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
                 if (bluetoothGatt!!.readCharacteristic(characteristic)) {
@@ -802,14 +822,9 @@ class BluetoothPeripheral internal constructor(
                 resultCallback.onCharacteristicRead(this@BluetoothPeripheral, ByteArray(0), characteristic, GattStatus.CONNECTION_CANCELLED)
                 completedCommand()
             }
-        })
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue read characteristic command")
         }
-        return result
     }
+
 
 
     suspend fun writeCharacteristic(serviceUUID: UUID, characteristicUUID: UUID, value: ByteArray, writeType: WriteType): ByteArray {
@@ -881,7 +896,7 @@ class BluetoothPeripheral internal constructor(
 
         // Copy the value to avoid race conditions
         val bytesToWrite = copyOf(value)
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
                 currentWriteBytes = bytesToWrite
@@ -908,13 +923,7 @@ class BluetoothPeripheral internal constructor(
                 resultCallback.onCharacteristicWrite(this@BluetoothPeripheral, ByteArray(0), characteristic, GattStatus.CONNECTION_CANCELLED)
                 completedCommand()
             }
-        })
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue write characteristic command")
         }
-        return result
     }
 
     private fun willCauseLongWrite(value: ByteArray, writeType: WriteType): Boolean {
@@ -952,10 +961,10 @@ class BluetoothPeripheral internal constructor(
     private fun readDescriptor(descriptor: BluetoothGattDescriptor, resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
-                if (bluetoothGatt!!.readDescriptor(descriptor)) {
+                if (bluetoothGatt?.readDescriptor(descriptor) == true) {
                     Logger.d(TAG, "reading descriptor <%s>", descriptor.uuid)
                     nrTries++
                 } else {
@@ -967,13 +976,7 @@ class BluetoothPeripheral internal constructor(
                 resultCallback.onDescriptorRead(this@BluetoothPeripheral, ByteArray(0), descriptor, GattStatus.CONNECTION_CANCELLED)
                 completedCommand()
             }
-        })
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue read descriptor command")
         }
-        return result
     }
 
     suspend fun writeDescriptor(descriptor: BluetoothGattDescriptor, value: ByteArray): ByteArray =
@@ -1015,12 +1018,12 @@ class BluetoothPeripheral internal constructor(
         // Copy the value to avoid race conditions
         val bytesToWrite = copyOf(value)
 
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
                 currentWriteBytes = bytesToWrite
                 descriptor.value = bytesToWrite
-                if (bluetoothGatt!!.writeDescriptor(descriptor)) {
+                if (bluetoothGatt?.writeDescriptor(descriptor) == true) {
                     Logger.d(TAG, "writing <%s> to descriptor <%s>", BluetoothBytesParser.bytes2String(bytesToWrite), descriptor.uuid)
                     nrTries++
                 } else {
@@ -1032,14 +1035,7 @@ class BluetoothPeripheral internal constructor(
                 resultCallback.onDescriptorWrite(this@BluetoothPeripheral, ByteArray(0), descriptor, GattStatus.CONNECTION_CANCELLED)
                 completedCommand()
             }
-        })
-
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue write descriptor command")
         }
-        return result
     }
 
 
@@ -1137,37 +1133,28 @@ class BluetoothPeripheral internal constructor(
         }
         val finalValue = if (enable) value else DISABLE_NOTIFICATION_VALUE
 
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (notConnected()) {
                 resultCallback.onDescriptorWrite(this@BluetoothPeripheral, ByteArray(0), descriptor, GattStatus.CONNECTION_CANCELLED)
                 completedCommand()
-                return@Runnable
-            }
-
-            // First try to set notification for Gatt object
-            currentResultCallback = resultCallback
-            if (!bluetoothGatt!!.setCharacteristicNotification(characteristic, enable)) {
-                Logger.e(TAG, "setCharacteristicNotification failed for characteristic: %s", characteristic.uuid)
-                completedCommand()
-                return@Runnable
-            }
-
-            currentWriteBytes = finalValue
-            descriptor.value = finalValue
-            if (bluetoothGatt!!.writeDescriptor(descriptor)) {
-                nrTries++
             } else {
-                Logger.e(TAG, "writeDescriptor failed for descriptor: %s", descriptor.uuid)
-                resultCallback.onDescriptorWrite(this@BluetoothPeripheral, ByteArray(0), descriptor, GattStatus.WRITE_NOT_PERMITTED)
-                completedCommand()
+                currentResultCallback = resultCallback
+                if (bluetoothGatt?.setCharacteristicNotification(characteristic, enable) == false) {
+                    Logger.e(TAG, "setCharacteristicNotification failed for characteristic: %s", characteristic.uuid)
+                    completedCommand()
+                } else {
+                    currentWriteBytes = finalValue
+                    descriptor.value = finalValue
+                    if (bluetoothGatt?.writeDescriptor(descriptor) == true) {
+                        nrTries++
+                    } else {
+                        Logger.e(TAG, "writeDescriptor failed for descriptor: %s", descriptor.uuid)
+                        resultCallback.onDescriptorWrite(this@BluetoothPeripheral, ByteArray(0), descriptor, GattStatus.WRITE_NOT_PERMITTED)
+                        completedCommand()
+                    }
+                }
             }
-        })
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue setNotify command")
         }
-        return result
     }
 
     suspend fun readRemoteRssi(): Int =
@@ -1198,10 +1185,10 @@ class BluetoothPeripheral internal constructor(
     private fun readRemoteRssi(resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
-                if (!bluetoothGatt!!.readRemoteRssi()) {
+                if (bluetoothGatt?.readRemoteRssi() == false) {
                     Logger.e(TAG, "readRemoteRssi failed")
                     resultCallback.onReadRemoteRssi(this@BluetoothPeripheral, 0, GattStatus.ERROR)
                     completedCommand()
@@ -1210,13 +1197,7 @@ class BluetoothPeripheral internal constructor(
                 resultCallback.onReadRemoteRssi(this@BluetoothPeripheral, 0, GattStatus.CONNECTION_CANCELLED)
                 completedCommand()
             }
-        })
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue readRemoteRssi command")
         }
-        return result
     }
 
     suspend fun requestMtu(mtu: Int): Int =
@@ -1260,10 +1241,10 @@ class BluetoothPeripheral internal constructor(
         require(mtu in DEFAULT_MTU..MAX_MTU) { "mtu must be between 23 and 517" }
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
-                if (bluetoothGatt!!.requestMtu(mtu)) {
+                if (bluetoothGatt?.requestMtu(mtu) == true) {
                     currentCommand = REQUEST_MTU_COMMAND
                     Logger.d(TAG, "requesting MTU of %d", mtu)
                 } else {
@@ -1275,13 +1256,7 @@ class BluetoothPeripheral internal constructor(
                 resultCallback.onMtuChanged(this@BluetoothPeripheral, 0, GattStatus.CONNECTION_CANCELLED)
                 completedCommand()
             }
-        })
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue requestMtu command")
         }
-        return result
     }
 
 
@@ -1311,10 +1286,10 @@ class BluetoothPeripheral internal constructor(
     private fun requestConnectionPriority(priority: ConnectionPriority, resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
-                if (bluetoothGatt!!.requestConnectionPriority(priority.value)) {
+                if (bluetoothGatt?.requestConnectionPriority(priority.value) == true) {
                     Logger.d(TAG, "requesting connection priority %s", priority)
                 } else {
                     Logger.e(TAG, "could not request connection priority")
@@ -1326,14 +1301,7 @@ class BluetoothPeripheral internal constructor(
                 currentResultCallback.onRequestedConnectionPriority(this@BluetoothPeripheral)
                 completedCommand()
             }
-        })
-
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue request connection priority command")
         }
-        return result
     }
 
     /**
@@ -1366,7 +1334,7 @@ class BluetoothPeripheral internal constructor(
     private fun setPreferredPhy(txPhy: PhyType, rxPhy: PhyType, phyOptions: PhyOptions, resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (isConnected) {
                 Logger.d(TAG, "setting preferred Phy: tx = %s, rx = %s, options = %s", txPhy, rxPhy, phyOptions)
                 currentResultCallback = resultCallback
@@ -1376,14 +1344,7 @@ class BluetoothPeripheral internal constructor(
                 resultCallback.onPhyUpdate(this@BluetoothPeripheral, txPhy, rxPhy, GattStatus.CONNECTION_CANCELLED)
                 completedCommand()
             }
-        })
-
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue setPreferredPhy command")
         }
-        return result
     }
 
     /**
@@ -1411,7 +1372,7 @@ class BluetoothPeripheral internal constructor(
     private fun readPhy(resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
                 bluetoothGatt?.readPhy()
@@ -1420,14 +1381,7 @@ class BluetoothPeripheral internal constructor(
                 resultCallback.onPhyUpdate(this@BluetoothPeripheral, PhyType.UNKNOWN_PHY_TYPE, PhyType.UNKNOWN_PHY_TYPE, GattStatus.CONNECTION_CANCELLED)
                 completedCommand()
             }
-        })
-
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue readyPhy command")
         }
-        return result
     }
 
     /**
@@ -1439,7 +1393,7 @@ class BluetoothPeripheral internal constructor(
         if (bluetoothGatt == null) return false
         var result = false
         try {
-            val refreshMethod = bluetoothGatt!!.javaClass.getMethod("refresh")
+            val refreshMethod = bluetoothGatt?.javaClass?.getMethod("refresh")
             if (refreshMethod != null) {
                 result = refreshMethod.invoke(bluetoothGatt) as Boolean
             }
@@ -1447,6 +1401,21 @@ class BluetoothPeripheral internal constructor(
             Logger.e(TAG, "could not invoke refresh method")
         }
         delay(100)
+        return result
+    }
+
+    /**
+     * Enqueue a command
+     *
+     * Return true if the command was enqueued, otherwise false
+     */
+    private fun enqueue(command: Runnable) : Boolean {
+        val result = commandQueue.add(command)
+        if (result) {
+            nextCommand()
+        } else {
+            Logger.e(TAG, "could not enqueue command")
+        }
         return result
     }
 

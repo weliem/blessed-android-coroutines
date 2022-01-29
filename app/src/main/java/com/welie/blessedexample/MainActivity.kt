@@ -226,7 +226,7 @@ class MainActivity : AppCompatActivity() {
         if (missingPermissions.isNotEmpty()) {
             requestPermissions(missingPermissions, ACCESS_LOCATION_REQUEST)
         } else {
-            permissionsGranted()
+            checkIfLocationIsNeeded()
         }
     }
 
@@ -250,10 +250,10 @@ class MainActivity : AppCompatActivity() {
             } else arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
 
-    private fun permissionsGranted() {
-        // Check if Location services are on because they are required to make scanning work for SDK < 31
+    private fun checkIfLocationIsNeeded() {
         val targetSdkVersion = applicationInfo.targetSdkVersion
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S && targetSdkVersion < Build.VERSION_CODES.S) {
+            // Check if Location services are on because they are required to make scanning work for SDK < 31
             if (checkLocationServices()) {
                 initBluetoothHandler()
             }
@@ -313,7 +313,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         if (allGranted) {
-            permissionsGranted()
+            checkIfLocationIsNeeded()
         } else {
             AlertDialog.Builder(this@MainActivity)
                 .setTitle("Location permission is required for scanning Bluetooth peripherals")

@@ -22,6 +22,7 @@
  */
 package com.welie.blessed
 
+import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
@@ -42,6 +43,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 /**
  * This class represent a peripheral running on the local phone
  */
+@SuppressLint("MissingPermission")
 class BluetoothPeripheralManager(private val context: Context, private val bluetoothManager: BluetoothManager, private val callback: BluetoothPeripheralManagerCallback) {
 //    private val context: Context
     private val mainHandler = Handler(Looper.getMainLooper())
