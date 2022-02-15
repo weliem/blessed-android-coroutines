@@ -105,28 +105,28 @@ internal abstract class BluetoothPeripheralCallback {
      *
      * @param peripheral the peripheral
      */
-    fun onBondingStarted(peripheral: BluetoothPeripheral) {}
+    open fun onBondingStarted(peripheral: BluetoothPeripheral) {}
 
     /**
      * Callback invoked when the bonding process has succeeded
      *
      * @param peripheral the peripheral
      */
-    fun onBondingSucceeded(peripheral: BluetoothPeripheral) {}
+    open fun onBondingSucceeded(peripheral: BluetoothPeripheral) {}
 
     /**
      * Callback invoked when the bonding process has failed
      *
      * @param peripheral the peripheral
      */
-    fun onBondingFailed(peripheral: BluetoothPeripheral) {}
+    open fun onBondingFailed(peripheral: BluetoothPeripheral) {}
 
     /**
      * Callback invoked when a bond has been lost and the peripheral is not bonded anymore.
      *
      * @param peripheral the peripheral
      */
-    fun onBondLost(peripheral: BluetoothPeripheral) {}
+    open fun onBondLost(peripheral: BluetoothPeripheral) {}
 
     /**
      * Callback invoked as the result of a read RSSI operation
@@ -178,7 +178,7 @@ internal abstract class BluetoothPeripheralCallback {
      * Valid range is from 10 (0.1s) to 3200 (32s).
      * @param status GATT status code
      */
-    fun onConnectionUpdated(peripheral: BluetoothPeripheral, interval: Int, latency: Int, timeout: Int, status: GattStatus) {}
+    open fun onConnectionUpdated(peripheral: BluetoothPeripheral, interval: Int, latency: Int, timeout: Int, status: GattStatus) {}
 
     /**
      * NULL class to deal with nullability
