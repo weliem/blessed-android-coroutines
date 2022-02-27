@@ -26,6 +26,7 @@ import java.nio.ByteOrder
 import java.nio.ByteOrder.LITTLE_ENDIAN
 import java.nio.charset.StandardCharsets
 import java.util.*
+import kotlin.math.pow
 
 class BluetoothBytesParser (
     var value: ByteArray,
@@ -498,6 +499,7 @@ class BluetoothBytesParser (
             }
             else -> return false
         }
+        this.offset += getTypeLen(formatType)
         return true
     }
 
@@ -509,7 +511,7 @@ class BluetoothBytesParser (
      * @return true if the locally stored value has been set
      */
     fun setFloatValue(value: Float, precision: Int): Boolean {
-        val mantissa = (value * Math.pow(10.0, precision.toDouble())).toFloat()
+        val mantissa = (value * 10.toDouble().pow(precision.toDouble())).toFloat()
         return setFloatValue(mantissa.toInt(), -precision, FORMAT_FLOAT, offset)
     }
 
@@ -611,16 +613,14 @@ class BluetoothBytesParser (
      * Convert signed bytes to a 16-bit short float value.
      */
     private fun bytesToFloat(b0: Byte, b1: Byte): Float {
-        val mantissa = unsignedToSigned(
-            unsignedByteToInt(b0)
-                    + (unsignedByteToInt(b1) and 0x0F shl 8), 12
-        )
+        val mantissa = unsignedToSigned(unsignedByteToInt(b0)
+                    + (unsignedByteToInt(b1) and 0x0F shl 8), 12)
         val exponent = unsignedToSigned(unsignedByteToInt(b1) shr 4, 4)
-        return (mantissa * Math.pow(10.0, exponent.toDouble())).toFloat()
+        return (mantissa * 10.toDouble().pow( exponent.toDouble())).toFloat()
     }
 
     /**
-     * Convert signed bytes to a 32-bit short float value.
+     * Convert signed bytes to a 32-bit float value.
      */
     private fun bytesToFloat(b0: Byte, b1: Byte, b2: Byte, b3: Byte): Float {
         val mantissa = unsignedToSigned(
@@ -628,7 +628,7 @@ class BluetoothBytesParser (
                     + (unsignedByteToInt(b1) shl 8)
                     + (unsignedByteToInt(b2) shl 16), 24
         )
-        return (mantissa * Math.pow(10.0, b3.toDouble())).toFloat()
+        return (mantissa * 10.toDouble().pow(b3.toDouble())).toFloat()
     }
 
     /**
