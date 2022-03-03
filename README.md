@@ -51,7 +51,7 @@ fun scanForPeripheralsWithAddresses(peripheralAddresses: Array<String>, resultCa
 fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>,resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit)
 ```
 
-They all work in the same way and take an array of either service UUIDs, peripheral names or mac addresses. When a peripheral is found your callback lambda will be called with the `BluetoothPeripheral` object and a `ScanResult` object that contains the scan details. The method `scanForPeripheralsUsingFilters` is for scanning using your own list of filters. See [Android documentation](https://developer.android.com/reference/android/bluetooth/le/ScanFilter) for more info on the use of `ScanFilter`. 
+They all work in the same way and take an array of either service UUIDs, peripheral names or mac addresses. When a peripheral is found your callback lambda will be called with the `BluetoothPeripheral` object and a `ScanResult` object that contains the scan details. The method `scanForPeripheralsUsingFilters` is for scanning using your own list of filters. See [Android documentation](https://developer.android.com/reference/android/bluetooth/le/ScanFilter) for more info on the use of `ScanFilter`. A second lambda is used to deliver any scan failures.
 
 So in order to setup a scan for a device with the Bloodpressure service or HeartRate service, you do:
 
