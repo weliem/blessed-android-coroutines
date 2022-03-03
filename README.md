@@ -44,11 +44,11 @@ The `BluetoothBytesParser` class is a utility class that makes parsing byte arra
 The `BluetoothCentralManager` class has several differrent scanning methods:
 
 ```kotlin
-fun scanForPeripherals()
-fun scanForPeripheralsWithServices(serviceUUIDs: Array<UUID>)
-fun scanForPeripheralsWithNames(peripheralNames: Array<String>)
-fun scanForPeripheralsWithAddresses(peripheralAddresses: Array<String>)
-fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>)
+fun scanForPeripherals(resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit )
+fun scanForPeripheralsWithServices(serviceUUIDs: Array<UUID>, resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit)
+fun scanForPeripheralsWithNames(peripheralNames: Array<String>, resultCallback: (BluetoothPeripheral, ScanResult) -> Unit,  scanError: (ScanFailure) -> Unit)
+fun scanForPeripheralsWithAddresses(peripheralAddresses: Array<String>, resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit)
+fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>,resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit)
 ```
 
 They all work in the same way and take an array of either service UUIDs, peripheral names or mac addresses. When a peripheral is found your callback lambda will be called with the `BluetoothPeripheral` object and a `ScanResult` object that contains the scan details. The method `scanForPeripheralsUsingFilters` is for scanning using your own list of filters. See [Android documentation](https://developer.android.com/reference/android/bluetooth/le/ScanFilter) for more info on the use of `ScanFilter`. 
@@ -60,11 +60,13 @@ So in order to setup a scan for a device with the Bloodpressure service or Heart
 val BLP_SERVICE_UUID = UUID.fromString("00001810-0000-1000-8000-00805f9b34fb")
 val HRS_SERVICE_UUID = UUID.fromString("0000180D-0000-1000-8000-00805f9b34fb")
 
-central.scanForPeripheralsWithServices(arrayOf(BLP_SERVICE_UUID, HRS_SERVICE_UUID)) { peripheral, scanResult ->
-    Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
-    central.stopScan()
-    connectPeripheral(peripheral)
-}
+central.scanForPeripheralsWithServices(arrayOf(BLP_SERVICE_UUID, HRS_SERVICE_UUID)            
+    { peripheral, scanResult ->
+        Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
+        central.stopScan()
+        connectPeripheral(peripheral)
+    },
+    { scanFailure -> Timber.e("scan failed with reason $scanFailure") })
 ```
 
 The scanning functions are not suspending functions and simply use a lambda function to receive the results.
