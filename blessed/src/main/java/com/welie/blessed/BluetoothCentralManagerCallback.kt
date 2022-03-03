@@ -27,7 +27,7 @@ import android.bluetooth.le.ScanResult
 /**
  * Callbacks for the BluetoothCentralManager class
  */
-abstract class BluetoothCentralManagerCallback {
+internal abstract class BluetoothCentralManagerCallback {
     /**
      * Successfully connected with a peripheral.
      *

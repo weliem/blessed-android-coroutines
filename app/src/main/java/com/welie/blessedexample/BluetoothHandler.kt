@@ -209,11 +209,13 @@ internal class BluetoothHandler private constructor(context: Context) {
     }
 
     private fun startScanning() {
-        central.scanForPeripheralsWithServices(supportedServices) { peripheral, scanResult ->
-            Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
-            central.stopScan()
-            connectPeripheral(peripheral)
-        }
+        central.scanForPeripheralsWithServices(supportedServices,
+            { peripheral, scanResult ->
+                Timber.i("Found peripheral '${peripheral.name}' with RSSI ${scanResult.rssi}")
+                central.stopScan()
+                connectPeripheral(peripheral)
+            },
+            { scanFailure -> Timber.e("scan failed with reason $scanFailure") })
     }
 
     private fun connectPeripheral(peripheral: BluetoothPeripheral) {
@@ -233,7 +235,7 @@ internal class BluetoothHandler private constructor(context: Context) {
     companion object {
         // UUIDs for the Blood Pressure service (BLP)
         private val BLP_SERVICE_UUID: UUID = UUID.fromString("00001810-0000-1000-8000-00805f9b34fb")
-        private val BLP_MEASUREMENT_CHARACTERISTIC_UUID : UUID = UUID.fromString("00002A35-0000-1000-8000-00805f9b34fb")
+        private val BLP_MEASUREMENT_CHARACTERISTIC_UUID: UUID = UUID.fromString("00002A35-0000-1000-8000-00805f9b34fb")
 
         // UUIDs for the Health Thermometer service (HTS)
         private val HTS_SERVICE_UUID = UUID.fromString("00001809-0000-1000-8000-00805f9b34fb")
@@ -309,7 +311,7 @@ internal class BluetoothHandler private constructor(context: Context) {
         }
 
         central.observeAdapterState { state ->
-            when(state) {
+            when (state) {
                 BluetoothAdapter.STATE_ON -> startScanning()
             }
         }

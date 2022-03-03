@@ -77,6 +77,7 @@ class BluetoothCentralManager(private val context: Context) {
     private var disconnectRunnable: Runnable? = null
     private val pinCodes: MutableMap<String, String> = ConcurrentHashMap()
     private var currentResultCallback : ((BluetoothPeripheral, ScanResult) -> Unit)? = null
+    private var currentScanErrorCallback : ((ScanFailure) -> Unit)? = null
     private var adapterStateCallback: (state: Int) -> Unit = {}
 
     private val scanByNameCallback: ScanCallback = object : ScanCallback() {
@@ -119,9 +120,10 @@ class BluetoothCentralManager(private val context: Context) {
     private fun sendScanFailed(scanFailure: ScanFailure) {
         currentCallback = null
         currentFilters = null
+        cancelTimeoutTimer()
         scope.launch {
             Logger.e(TAG, "scan failed with error code %d (%s)", scanFailure.value, scanFailure)
-         //   bluetoothCentralManagerCallback.onScanFailed(scanFailure)
+            currentScanErrorCallback?.invoke(scanFailure)
         }
     }
 
@@ -247,10 +249,6 @@ class BluetoothCentralManager(private val context: Context) {
 
     private fun startScan(filters: List<ScanFilter>, scanSettings: ScanSettings, scanCallback: ScanCallback) {
         if (bleNotReady()) return
-        if (isScanning) {
-            Logger.e(TAG, "other scan still active, stopping scan")
-            stopScan()
-        }
         if (bluetoothScanner == null) {
             bluetoothScanner = bluetoothAdapter.bluetoothLeScanner
         }
@@ -271,8 +269,10 @@ class BluetoothCentralManager(private val context: Context) {
      * @param serviceUUIDs an array of service UUIDs
      * @throws IllegalArgumentException if the array of service UUIDs is empty
      */
-    fun scanForPeripheralsWithServices(serviceUUIDs: Array<UUID>,  resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
+    fun scanForPeripheralsWithServices(serviceUUIDs: Array<UUID>,  resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit   ) {
         require(serviceUUIDs.isNotEmpty()) { "at least one service UUID  must be supplied" }
+
+        if (isScanning) stopScan()
 
         val filters: MutableList<ScanFilter> = ArrayList()
         for (serviceUUID in serviceUUIDs) {
@@ -283,6 +283,7 @@ class BluetoothCentralManager(private val context: Context) {
         }
 
         currentResultCallback = resultCallback
+        currentScanErrorCallback = scanError
         startScan(filters, scanSettings, defaultScanCallback)
     }
 
@@ -295,9 +296,13 @@ class BluetoothCentralManager(private val context: Context) {
      * @param peripheralNames array of partial peripheral names
      * @throws IllegalArgumentException if the array of peripheral names is empty
      */
-    fun scanForPeripheralsWithNames(peripheralNames: Array<String>, resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
+    fun scanForPeripheralsWithNames(peripheralNames: Array<String>, resultCallback: (BluetoothPeripheral, ScanResult) -> Unit,  scanError: (ScanFailure) -> Unit   ) {
         require(peripheralNames.isNotEmpty()) { "at least one peripheral name must be supplied" }
+
+        if (isScanning) stopScan()
+
         currentResultCallback = resultCallback
+        currentScanErrorCallback = scanError
 
         // Start the scanner with no filter because we'll do the filtering ourselves
         scanPeripheralNames = peripheralNames
@@ -310,9 +315,13 @@ class BluetoothCentralManager(private val context: Context) {
      * @param peripheralAddresses array of peripheral mac addresses to scan for
      * @throws IllegalArgumentException if the array of addresses is empty
      */
-    fun scanForPeripheralsWithAddresses(peripheralAddresses: Array<String>, resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
+    fun scanForPeripheralsWithAddresses(peripheralAddresses: Array<String>, resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit   ) {
         require(peripheralAddresses.isNotEmpty()) { "at least one peripheral address must be supplied" }
+
+        if (isScanning) stopScan()
+
         currentResultCallback = resultCallback
+        currentScanErrorCallback = scanError
 
         val filters: MutableList<ScanFilter> = ArrayList()
         for (address in peripheralAddresses) {
@@ -334,17 +343,24 @@ class BluetoothCentralManager(private val context: Context) {
      * @param filters A list of ScanFilters
      * @throws IllegalArgumentException if the list of filters is empty
      */
-    fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>,resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
+    fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>,resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit  ) {
         require(filters.isNotEmpty()) { "at least one scan filter must be supplied" }
+
+        if (isScanning) stopScan()
+
         currentResultCallback = resultCallback
+        currentScanErrorCallback = scanError
         startScan(filters, scanSettings, defaultScanCallback)
     }
 
     /**
      * Scan for any peripheral that is advertising.
      */
-    fun scanForPeripherals(resultCallback: (BluetoothPeripheral, ScanResult) -> Unit ) {
+    fun scanForPeripherals(resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit ) {
+        if (isScanning) stopScan()
+
         currentResultCallback = resultCallback
+        currentScanErrorCallback = scanError
         startScan(emptyList(), scanSettings, defaultScanCallback)
     }
 
@@ -397,7 +413,7 @@ class BluetoothCentralManager(private val context: Context) {
                 Logger.i(TAG, "scan stopped")
             }
         } else {
-            Logger.i(TAG, "no scan to stop because no scan is running")
+            Logger.d(TAG, "no scan to stop because no scan is running")
         }
         currentCallback = null
         currentFilters = null
@@ -455,7 +471,7 @@ class BluetoothCentralManager(private val context: Context) {
 
             scannedPeripherals.remove(peripheral.address)
             unconnectedPeripherals[peripheral.address] = peripheral
-            currentCentralManagerCallback = resultCentralManagerCallback
+//            currentCentralManagerCallback = resultCentralManagerCallback
             peripheral.connect()
         }
     }
@@ -524,7 +540,7 @@ class BluetoothCentralManager(private val context: Context) {
             })
         }
 
-    fun cancelConnection(peripheral: BluetoothPeripheral, resultCentralManagerCallback: BluetoothCentralManagerCallback) {
+    private fun cancelConnection(peripheral: BluetoothPeripheral, resultCentralManagerCallback: BluetoothCentralManagerCallback) {
         // First check if we are doing a reconnection scan for this peripheral
         val peripheralAddress = peripheral.address
         if (reconnectPeripheralAddresses.contains(peripheralAddress)) {
@@ -543,7 +559,7 @@ class BluetoothCentralManager(private val context: Context) {
 
         // Only cancel connections if it is an known peripheral
         if (unconnectedPeripherals.containsKey(peripheralAddress) || connectedPeripherals.containsKey(peripheralAddress)) {
-            currentCentralManagerCallback = resultCentralManagerCallback
+//            currentCentralManagerCallback = resultCentralManagerCallback
             peripheral.cancelConnection()
         } else {
             Logger.e(TAG, "cannot cancel connection to unknown peripheral %s", peripheralAddress)
