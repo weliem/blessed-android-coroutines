@@ -471,7 +471,7 @@ class BluetoothCentralManager(private val context: Context) {
 
             scannedPeripherals.remove(peripheral.address)
             unconnectedPeripherals[peripheral.address] = peripheral
-//            currentCentralManagerCallback = resultCentralManagerCallback
+            currentCentralManagerCallback = resultCentralManagerCallback
             peripheral.connect()
         }
     }
@@ -559,7 +559,7 @@ class BluetoothCentralManager(private val context: Context) {
 
         // Only cancel connections if it is an known peripheral
         if (unconnectedPeripherals.containsKey(peripheralAddress) || connectedPeripherals.containsKey(peripheralAddress)) {
-//            currentCentralManagerCallback = resultCentralManagerCallback
+            currentCentralManagerCallback = resultCentralManagerCallback
             peripheral.cancelConnection()
         } else {
             Logger.e(TAG, "cannot cancel connection to unknown peripheral %s", peripheralAddress)
