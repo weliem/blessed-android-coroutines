@@ -554,7 +554,7 @@ class BluetoothBytesParser (
      * @return flase if the calendar object was null, otherwise true
      */
     fun setCurrentTime(calendar: Calendar): Boolean {
-        value = ByteArray(10)
+        prepareArray(10)
         setDateTime(calendar)
         value[7] = ((calendar[Calendar.DAY_OF_WEEK] + 5) % 7 + 1).toByte()
         value[8] = (calendar[Calendar.MILLISECOND] * 256 / 1000).toByte()
@@ -569,7 +569,7 @@ class BluetoothBytesParser (
      * @return flase if the calendar object was null, otherwise true
      */
     fun setDateTime(calendar: Calendar): Boolean {
-        value = ByteArray(7)
+        prepareArray(7)
         value[0] = calendar[Calendar.YEAR].toByte()
         value[1] = (calendar[Calendar.YEAR] shr 8).toByte()
         value[2] = (calendar[Calendar.MONTH] + 1).toByte()
