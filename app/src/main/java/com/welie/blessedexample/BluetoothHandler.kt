@@ -44,7 +44,7 @@ internal class BluetoothHandler private constructor(context: Context) {
                 val batteryLevel = peripheral.readCharacteristic(BTS_SERVICE_UUID, BATTERY_LEVEL_CHARACTERISTIC_UUID).asUInt8()
                 Timber.i("Battery level: $batteryLevel")
 
-                // Turn on notifications for Current Time Service and write it if possible
+                // Write Current Time if possible
                 peripheral.getCharacteristic(CTS_SERVICE_UUID, CURRENT_TIME_CHARACTERISTIC_UUID)?.let {
                     // If it has the write property we write the current time
                     if (it.supportsWritingWithResponse()) {
