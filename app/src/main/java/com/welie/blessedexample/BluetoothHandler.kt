@@ -49,7 +49,7 @@ internal class BluetoothHandler private constructor(context: Context) {
                     // If it has the write property we write the current time
                     if (it.supportsWritingWithResponse()) {
                         // Write the current time unless it is an Omron device
-                        if (!peripheral.name.contains("BLEsmart_")) {
+                        if (!peripheral.name.contains("BLEsmart_", true)) {
                             val parser = BluetoothBytesParser(ByteOrder.LITTLE_ENDIAN)
                             parser.setCurrentTime(Calendar.getInstance())
                             peripheral.writeCharacteristic(it, parser.value, WriteType.WITH_RESPONSE)
@@ -76,7 +76,6 @@ internal class BluetoothHandler private constructor(context: Context) {
         }
     }
 
-
     private suspend fun writeContourClock(peripheral: BluetoothPeripheral) {
         val calendar = Calendar.getInstance()
         val offsetInMinutes = calendar.timeZone.rawOffset / 60000
@@ -102,7 +101,7 @@ internal class BluetoothHandler private constructor(context: Context) {
 
                 // Deal with Omron devices where we can only write currentTime under specific conditions
                 val name = peripheral.name
-                if (name.contains("BLEsmart_")) {
+                if (name.contains("BLEsmart_", true)) {
                     peripheral.getCharacteristic(BLP_SERVICE_UUID, BLP_MEASUREMENT_CHARACTERISTIC_UUID)?.let {
                         val isNotifying = peripheral.isNotifying(it)
                         if (isNotifying) currentTimeCounter++
