@@ -860,8 +860,12 @@ class BluetoothCentralManager(private val context: Context) {
     private fun startDisconnectionTimer() {
         cancelDisconnectionTimer()
         disconnectRunnable = Runnable {
-            Logger.e(TAG, "bluetooth turned off but no automatic disconnects happening, so doing it ourselves")
-            cancelAllConnectionsWhenBluetoothOff()
+            if (expectingBluetoothOffDisconnects) {
+                Logger.e(TAG, "bluetooth turned off but no automatic disconnects happening, so doing it ourselves")
+                cancelAllConnectionsWhenBluetoothOff()
+            } else {
+                Logger.e(TAG, "bluetooth turning on since manual disconnection timer has been launched, don't disconnect")
+            }
             disconnectRunnable = null
         }
         mainHandler.postDelayed(disconnectRunnable!!, 1000)
