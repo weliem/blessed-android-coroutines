@@ -434,7 +434,7 @@ class BluetoothPeripheral internal constructor(
     /**
      * Connect directly with the bluetooth device. This call will timeout in max 30 seconds (5 seconds on Samsung phones)
      */
-    fun connect() {
+    fun connect(tryCount: Int = 10) {
         if (state == BluetoothProfile.STATE_DISCONNECTED) {
             scope.launch {
                 delay(DIRECT_CONNECTION_DELAY_IN_MS)
@@ -455,6 +455,15 @@ class BluetoothPeripheral internal constructor(
             }
         } else {
             Logger.e(TAG, "peripheral '%s' not yet disconnected, will not connect", name)
+            if (tryCount > 0) {
+                scope.launch {
+                    Logger.d(TAG, "Retrying in ${DELAY_BEFORE_CONNECT_RETRY_IN_MS}ms...")
+                    delay(DELAY_BEFORE_CONNECT_RETRY_IN_MS)
+                    connect(tryCount - 1)
+                }
+            } else {
+                Logger.e(TAG, "No more tries to connect to '%s'", name)
+            }
         }
     }
 
@@ -462,7 +471,7 @@ class BluetoothPeripheral internal constructor(
      * Try to connect to a device whenever it is found by the OS. This call never times out.
      * Connecting to a device will take longer than when using connect()
      */
-    fun autoConnect() {
+    fun autoConnect(tryCount: Int = 10) {
         // Note that this will only work for devices that are known! After turning BT on/off Android doesn't know the device anymore!
         // https://stackoverflow.com/questions/43476369/android-save-ble-device-to-reconnect-after-app-close
         if (state == BluetoothProfile.STATE_DISCONNECTED) {
@@ -482,7 +491,16 @@ class BluetoothPeripheral internal constructor(
                 }
             }
         } else {
-            Logger.e(TAG, "peripheral '%s' not yet disconnected, will not connect", name)
+            Logger.e(TAG, "peripheral '%s' not yet disconnected, will not reconnect", name)
+            if (tryCount > 0) {
+                scope.launch {
+                    Logger.d(TAG, "Retrying in ${DELAY_BEFORE_CONNECT_RETRY_IN_MS}ms...")
+                    delay(DELAY_BEFORE_CONNECT_RETRY_IN_MS)
+                    autoConnect(tryCount - 1)
+                }
+            } else {
+                Logger.e(TAG, "No more tries to reconnect to '%s'", name)
+            }
         }
     }
 
@@ -1588,6 +1606,9 @@ class BluetoothPeripheral internal constructor(
 
         // The average time it takes to complete requestConnectionPriority
         private const val AVG_REQUEST_CONNECTION_PRIORITY_DURATION = 500L
+
+        // Delay to use before retrying a connection
+        private const val DELAY_BEFORE_CONNECT_RETRY_IN_MS = 1000L
 
         // Error message constants
         private const val PERIPHERAL_NOT_CONNECTED = "peripheral not connected"
