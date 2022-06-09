@@ -29,15 +29,15 @@ where `$version` is the latest published version in Jitpack [![](https://jitpack
 The library consists of 5 core classes and corresponding callback abstract classes:
 1. `BluetoothCentralManager`, for scanning and connecting peripherals
 2. `BluetoothPeripheral`, for all peripheral related methods
-3. `BluetoothPeripheralManager`, and it's companion abstract class `BluetoothPeripheralManagerCallback`
+3. `BluetoothPeripheralManager`, and its companion abstract class `BluetoothPeripheralManagerCallback`
 4. `BluetoothCentral`
 5. `BluetoothBytesParser`
 
 The `BluetoothCentralManager` class is used to scan for devices and manage connections. The `BluetoothPeripheral` class is a replacement for the standard Android `BluetoothDevice` and `BluetoothGatt` classes. It wraps all GATT related peripheral functionality. 
 
-The `BluetoothPeripheralManager` class is used to create your own peripheral running on an Android phone. You can add service, control advertising and deal with requests from remote centrals, represented by the `BluetoothCentral` class. For more about creating your own peripherals see the separate guide: [creating your own peripheral](SERVER.md)
+The `BluetoothPeripheralManager` class is used to create your own peripheral running on an Android phone. You can add service, control advertising, and deal with requests from remote centrals, represented by the `BluetoothCentral` class. For more about creating your own peripherals see the separate guide: [creating your own peripheral](SERVER.md)
 
-The `BluetoothBytesParser` class is a utility class that makes parsing byte arrays easy. You can also use it construct your own byte arrays by adding integers, floats or strings.
+The `BluetoothBytesParser` class is a utility class that makes parsing byte arrays easy. You can also use it to construct your own byte arrays by adding integers, floats, or strings.
 
 ## Scanning
 
@@ -51,7 +51,7 @@ fun scanForPeripheralsWithAddresses(peripheralAddresses: Array<String>, resultCa
 fun scanForPeripheralsUsingFilters(filters: List<ScanFilter>,resultCallback: (BluetoothPeripheral, ScanResult) -> Unit, scanError: (ScanFailure) -> Unit)
 ```
 
-They all work in the same way and take an array of either service UUIDs, peripheral names or mac addresses. When a peripheral is found your callback lambda will be called with the `BluetoothPeripheral` object and a `ScanResult` object that contains the scan details. The method `scanForPeripheralsUsingFilters` is for scanning using your own list of filters. See [Android documentation](https://developer.android.com/reference/android/bluetooth/le/ScanFilter) for more info on the use of `ScanFilter`. A second lambda is used to deliver any scan failures.
+They all work in the same way and take an array of either service UUIDs, peripheral names, or mac addresses. When a peripheral is found your callback lambda will be called with the `BluetoothPeripheral` object and a `ScanResult` object that contains the scan details. The method `scanForPeripheralsUsingFilters` is for scanning using your own list of filters. See [Android documentation](https://developer.android.com/reference/android/bluetooth/le/ScanFilter) for more info on the use of `ScanFilter`. A second lambda is used to deliver any scan failures.
 
 So in order to setup a scan for a device with the Bloodpressure service or HeartRate service, you do:
 
@@ -84,7 +84,7 @@ fun autoConnectPeripheral(peripheral: BluetoothPeripheral)
 fun autoConnectPeripheralsBatch(batch: Set<BluetoothPeripheral>)
 ```
 
-The method `connectPeripheral` is a **suspending function** will try to immediately connect to a device that has already been found using a scan. This method will time out after 30 seconds or less, depending on the device manufacturer, and a `ConnectionFailedException` will be thrown. Note that there can be **only 1 outstanding** `connectPeripheral`. So if it is called multiple times only 1 will succeed.
+The method `connectPeripheral` is a **suspending function** that will try to immediately connect to a device that has already been found using a scan. This method will time out after 30 seconds or less, depending on the device manufacturer, and a `ConnectionFailedException` will be thrown. Note that there can be **only 1 outstanding** `connectPeripheral`. So if it is called multiple times only 1 will succeed.
 
 ```kotlin
 scope.launch {
@@ -98,7 +98,7 @@ scope.launch {
 
 The method `autoConnectPeripheral` will **not suspend** and is for re-connecting to known devices for which you already know the device's mac address. The BLE stack will automatically connect to the device when it sees it in its internal scan. Therefore, it may take longer to connect to a device but this call will never time out! So you can issue the autoConnect command and the device will be connected whenever it is found. This call will **also work** when the device is not cached by the Android stack, as BLESSED takes care of it! In contrary to `connectPeripheral`, there can be multiple outstanding `autoConnectPeripheral` requests.
 
-The method `autoConnectPeripheralsBatch` is for re-connecting to multiple peripherals in one go. Since the normal `autoConnectPeripheral` may involve scanning, if peripherals are uncached, it is not suitable for calling very fast after each other, since it may trigger scanner limitations of Android. So use `autoConnectPeripheralsBatch` if the want to re-connect to many known peripherals.
+The method `autoConnectPeripheralsBatch` is for re-connecting to multiple peripherals in one go. Since the normal `autoConnectPeripheral` may involve scanning, if peripherals are uncached, it is not suitable for calling very fast after each other, since it may trigger scanner limitations of Android. So use `autoConnectPeripheralsBatch` if you want to re-connect to many known peripherals.
 
 If you know the mac address of your peripheral you can obtain a `BluetoothPeripheral` object using:
 ```kotlin
@@ -116,7 +116,7 @@ To disconnect or to cancel an outstanding `connectPeripheral()` or `autoConnectP
 ```kotlin
 suspend fun cancelConnection(peripheral: BluetoothPeripheral): Unit
 ```
-The function will suspend untill the peripheral is disconnected. 
+The function will suspend until the peripheral is disconnected. 
 
 ## Service discovery
 
@@ -140,7 +140,7 @@ suspend fun readDescriptor(descriptor: BluetoothGattDescriptor): ByteArray
 suspend fun writeDescriptor(descriptor: BluetoothGattDescriptor, value: ByteArray): ByteArray
 ```
 
-All methods are **suspending** and will return the result of the operation. The method `readCharacteristic` will return the ByteArray that has been read. It will throw `IllegalArgumentException` if the characteristic you provide is not readable, and it will throw `GattException` if the read was not succesful.
+All methods are **suspending** and will return the result of the operation. The method `readCharacteristic` will return the ByteArray that has been read. It will throw `IllegalArgumentException` if the characteristic you provide is not readable, and it will throw `GattException` if the read was not successful.
 
 If you want to write to a characteristic, you need to provide a `value` and a `writeType`. The `writeType` is usually `WITH_RESPONSE` or `WITHOUT_RESPONSE`. If the write type you specify is not supported by the characteristic it will throw `IllegalArgumentException`. The method will return the bytes that were written or an empty byte array in case something went wrong.
 
@@ -159,7 +159,7 @@ val model = peripheral.readCharacteristic(DIS_SERVICE_UUID, MODEL_NUMBER_CHARACT
 Timber.i("Received: $model")
 ```
 
-Note that there are also some extension like `asString()` and `asUInt8()` to quickly turn byte arrays in Strings or UInt8s.
+Note that there are also some extension methods like `asString()` and `asUInt8()` to quickly turn byte arrays in Strings or UInt8s.
 
 ## Turning notifications on/off
 
@@ -184,7 +184,7 @@ peripheral.observeBondState {
     Timber.i("Bond state is $it")
 }
 ```
-In most cases, the peripheral will initiate bonding either at the time of connection, or when trying to read/write protected characteristics. However, if you want you can also initiate bonding yourself by calling `createBond` on a peripheral. There are two ways to do this:
+In most cases, the peripheral will initiate bonding either at the time of connection or when trying to read/write protected characteristics. However, if you want you can also initiate bonding yourself by calling `createBond` on a peripheral. There are two ways to do this:
 * Calling `createBond` when not yet connected to a peripheral. In this case, a connection is made and bonding is requested.
 * Calling `createBond` when already connected to a peripheral. In this case, only the bond is created.
 
@@ -245,7 +245,7 @@ It will return the current Phy
 
 ## Example application
 
-An example application is provided in the repo. It shows how to connect to Blood Pressure meters, Heart Rate monitors, Weight scales, Glucose Meters, Pulse Oximeters and Thermometers, read the data and show it on screen. It only works with peripherals that use the Bluetooth SIG services. Working peripherals include:
+An example application is provided in the repo. It shows how to connect to Blood Pressure meters, Heart Rate monitors, Weight scales, Glucose Meters, Pulse Oximeters, and Thermometers, read the data, and show it on screen. It only works with peripherals that use the Bluetooth SIG services. Working peripherals include:
 
 * Beurer FT95 thermometer
 * GRX Thermometer (TD-1241)
