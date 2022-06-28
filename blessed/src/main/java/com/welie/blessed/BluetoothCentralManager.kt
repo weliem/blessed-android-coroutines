@@ -73,7 +73,6 @@ class BluetoothCentralManager(private val context: Context) {
     private var scanSettings: ScanSettings
     private val autoConnectScanSettings: ScanSettings
     private val connectionRetries: MutableMap<String, Int> = ConcurrentHashMap()
-    private var expectingBluetoothOffDisconnects = false
     private var disconnectRunnable: Runnable? = null
     private val pinCodes: MutableMap<String, String> = ConcurrentHashMap()
     private var currentResultCallback : ((BluetoothPeripheral, ScanResult) -> Unit)? = null
@@ -197,10 +196,6 @@ class BluetoothCentralManager(private val context: Context) {
         }
 
         override fun disconnected(peripheral: BluetoothPeripheral, status: HciStatus) {
-            if (expectingBluetoothOffDisconnects) {
-                cancelDisconnectionTimer()
-                expectingBluetoothOffDisconnects = false
-            }
             connectedPeripherals.remove(peripheral.address)
             unconnectedPeripherals.remove(peripheral.address)
             scannedPeripherals.remove(peripheral.address)
@@ -854,29 +849,6 @@ class BluetoothCentralManager(private val context: Context) {
         reconnectPeripheralAddresses.clear()
     }
 
-    /**
-     * Timer to determine if manual disconnection in case of bluetooth off is needed
-     */
-    private fun startDisconnectionTimer() {
-        cancelDisconnectionTimer()
-        disconnectRunnable = Runnable {
-            Logger.e(TAG, "bluetooth turned off but no automatic disconnects happening, so doing it ourselves")
-            cancelAllConnectionsWhenBluetoothOff()
-            disconnectRunnable = null
-        }
-        mainHandler.postDelayed(disconnectRunnable!!, 1000)
-    }
-
-    /**
-     * Cancel timer for bluetooth off disconnects
-     */
-    private fun cancelDisconnectionTimer() {
-        if (disconnectRunnable != null) {
-            mainHandler.removeCallbacks(disconnectRunnable!!)
-            disconnectRunnable = null
-        }
-    }
-
     fun observeAdapterState(callback: (state: Int) -> Unit) {
         this.adapterStateCallback = callback
     }
@@ -897,13 +869,14 @@ class BluetoothCentralManager(private val context: Context) {
             BluetoothAdapter.STATE_OFF -> {
                 // Check if there are any connected peripherals or connections in progress
                 if (connectedPeripherals.isNotEmpty() || unconnectedPeripherals.isNotEmpty()) {
-                    // See if they are automatically disconnect
-                    expectingBluetoothOffDisconnects = true
-                    startDisconnectionTimer()
+                    cancelAllConnectionsWhenBluetoothOff()
                 }
                 Logger.d(TAG, "bluetooth turned off")
             }
             BluetoothAdapter.STATE_TURNING_OFF -> {
+                // Try to disconnect all peripherals because Android doesn't always do that
+                connectedPeripherals.forEach { entry -> entry.value.cancelConnection()}
+
                 // Stop all scans so that we are back in a clean state
                 if (isScanning) {
                     // Note that we can't call stopScan if the adapter is off
@@ -922,8 +895,6 @@ class BluetoothCentralManager(private val context: Context) {
                     }
                 }
 
-                expectingBluetoothOffDisconnects = true
-
                 // Stop all scans so that we are back in a clean state
                 // Note that we can't call stopScan if the adapter is off
                 cancelTimeoutTimer()
@@ -940,11 +911,9 @@ class BluetoothCentralManager(private val context: Context) {
                 bluetoothScanner = bluetoothAdapter.bluetoothLeScanner
                 bluetoothScanner?.stopScan(defaultScanCallback)
 
-                expectingBluetoothOffDisconnects = false
                 Logger.d(TAG, "bluetooth turned on")
             }
             BluetoothAdapter.STATE_TURNING_ON -> {
-                expectingBluetoothOffDisconnects = false
                 Logger.d(TAG, "bluetooth turning on")
             }
         }

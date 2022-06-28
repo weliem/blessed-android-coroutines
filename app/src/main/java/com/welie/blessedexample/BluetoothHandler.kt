@@ -302,7 +302,11 @@ internal class BluetoothHandler private constructor(context: Context) {
                 ConnectionState.CONNECTED -> handlePeripheral(peripheral)
                 ConnectionState.DISCONNECTED -> scope.launch {
                     delay(15000)
-                    central.autoConnectPeripheral(peripheral)
+
+                    // Check if this peripheral should still be auto connected
+                    if (central.getPeripheral(peripheral.address).getState() == ConnectionState.DISCONNECTED) {
+                        central.autoConnectPeripheral(peripheral)
+                    }
                 }
                 else -> {
                 }
