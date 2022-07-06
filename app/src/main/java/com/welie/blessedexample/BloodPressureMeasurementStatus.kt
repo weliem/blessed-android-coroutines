@@ -1,7 +1,3 @@
-/*
- * Copyright (c) Koninklijke Philips N.V. 2020.
- * All rights reserved.
- */
 package com.welie.blessedexample
 
 class BloodPressureMeasurementStatus internal constructor(measurementStatus: Int) {
