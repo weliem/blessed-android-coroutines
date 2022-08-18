@@ -297,7 +297,7 @@ internal class BluetoothHandler private constructor(context: Context) {
         central = BluetoothCentralManager(context)
 
         central.observeConnectionState { peripheral, state ->
-            Timber.i("Peripheral ${peripheral.name} has $state")
+            Timber.i("Peripheral '${peripheral.name}' is $state")
             when (state) {
                 ConnectionState.CONNECTED -> handlePeripheral(peripheral)
                 ConnectionState.DISCONNECTED -> scope.launch {
