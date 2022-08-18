@@ -1515,7 +1515,9 @@ class BluetoothPeripheral internal constructor(
             disconnect()
             scope.launch {
                 delay(50)
-                bluetoothGattCallback.onConnectionStateChange(bluetoothGatt, HciStatus.CONNECTION_FAILED_ESTABLISHMENT.value, BluetoothProfile.STATE_DISCONNECTED)
+                if (bluetoothGatt != null) {
+                    bluetoothGattCallback.onConnectionStateChange(bluetoothGatt, HciStatus.CONNECTION_FAILED_ESTABLISHMENT.value, BluetoothProfile.STATE_DISCONNECTED)
+                }            
             }
         }
     }
