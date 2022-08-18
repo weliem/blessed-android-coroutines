@@ -103,8 +103,14 @@ class BluetoothPeripheral internal constructor(
                 when (newState) {
                     BluetoothProfile.STATE_CONNECTED -> successfullyConnected()
                     BluetoothProfile.STATE_DISCONNECTED -> successfullyDisconnected(previousState)
-                    BluetoothProfile.STATE_DISCONNECTING -> Logger.d(TAG, "peripheral is disconnecting")
-                    BluetoothProfile.STATE_CONNECTING -> Logger.d(TAG, "peripheral is connecting")
+                    BluetoothProfile.STATE_DISCONNECTING -> {
+                        Logger.d(TAG, "peripheral is disconnecting")
+                        listener.disconnecting(this@BluetoothPeripheral)
+                    }
+                    BluetoothProfile.STATE_CONNECTING -> {
+                        Logger.d(TAG, "peripheral is connecting")
+                        listener.connecting(this@BluetoothPeripheral)
+                    }
                     else -> Logger.e(TAG, "unknown state received")
                 }
             } else {
@@ -142,9 +148,11 @@ class BluetoothPeripheral internal constructor(
                 )
             }
 
+            val value = currentWriteBytes
+            currentWriteBytes = ByteArray(0)
+
             if (descriptor.uuid == CCC_DESCRIPTOR_UUID) {
                 if (gattStatus == GattStatus.SUCCESS) {
-                    val value = nonnullOf(descriptor.value)
                     if (value.contentEquals(ENABLE_NOTIFICATION_VALUE) ||
                         value.contentEquals(ENABLE_INDICATION_VALUE)
                     ) {
@@ -155,7 +163,7 @@ class BluetoothPeripheral internal constructor(
                 }
                 callbackScope.launch { resultCallback.onNotificationStateUpdate(this@BluetoothPeripheral, parentCharacteristic, gattStatus) }
             } else {
-                callbackScope.launch { resultCallback.onDescriptorWrite(this@BluetoothPeripheral, currentWriteBytes, descriptor, gattStatus) }
+                callbackScope.launch { resultCallback.onDescriptorWrite(this@BluetoothPeripheral, value, descriptor, gattStatus) }
             }
             completedCommand()
         }
@@ -506,11 +514,12 @@ class BluetoothPeripheral internal constructor(
         // Check if we have a Gatt object
         if (bluetoothGatt == null) {
             // No gatt object so no connection issued, do create bond immediately
+            registerBondingBroadcastReceivers()
             return device.createBond()
         }
 
         // Enqueue the bond command because a connection has been issued or we are already connected
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             manuallyBonding = true
             if (!device.createBond()) {
                 Logger.e(TAG, "bonding failed for %s", address)
@@ -519,13 +528,7 @@ class BluetoothPeripheral internal constructor(
                 Logger.d(TAG, "manually bonding %s", address)
                 nrTries++
             }
-        })
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue bonding command")
         }
-        return result
     }
 
     /**
@@ -591,7 +594,6 @@ class BluetoothPeripheral internal constructor(
     }
 
     fun disconnectWhenBluetoothOff() {
-        bluetoothGatt = null
         completeDisconnect(true, HciStatus.SUCCESS)
     }
 
@@ -606,6 +608,10 @@ class BluetoothPeripheral internal constructor(
         commandQueue.clear()
         commandQueueBusy = false
         notifyingCharacteristics.clear()
+        currentMtu = DEFAULT_MTU
+        currentCommand = IDLE
+        manuallyBonding = false
+        discoveryStarted = false
         try {
             context.unregisterReceiver(bondStateReceiver)
             context.unregisterReceiver(pairingRequestBroadcastReceiver)
@@ -1489,6 +1495,13 @@ class BluetoothPeripheral internal constructor(
 
     interface InternalCallback {
         /**
+         * Trying to connect to [BluetoothPeripheral]
+         *
+         * @param peripheral [BluetoothPeripheral] the peripheral.
+         */
+        fun connecting(peripheral: BluetoothPeripheral)
+
+        /**
          * [BluetoothPeripheral] has successfully connected.
          *
          * @param peripheral [BluetoothPeripheral] that connected.
@@ -1501,6 +1514,13 @@ class BluetoothPeripheral internal constructor(
          * @param peripheral [BluetoothPeripheral] of which connect failed.
          */
         fun connectFailed(peripheral: BluetoothPeripheral, status: HciStatus)
+
+        /**
+         * Trying to disconnect to [BluetoothPeripheral]
+         *
+         * @param peripheral [BluetoothPeripheral] the peripheral.
+         */
+        fun disconnecting(peripheral: BluetoothPeripheral)
 
         /**
          * [BluetoothPeripheral] has disconnected.
