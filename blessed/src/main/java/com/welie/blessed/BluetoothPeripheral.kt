@@ -94,7 +94,7 @@ class BluetoothPeripheral internal constructor(
      */
     private val bluetoothGattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
-            cancelConnectionTimer()
+            if (newState != BluetoothProfile.STATE_CONNECTING) cancelConnectionTimer()
             val previousState = state
             state = newState
 
@@ -440,7 +440,6 @@ class BluetoothPeripheral internal constructor(
                 delay(DIRECT_CONNECTION_DELAY_IN_MS)
                 Logger.d(TAG, "connect to '%s' (%s) using TRANSPORT_LE", name, address)
                 registerBondingBroadcastReceivers()
-                state = BluetoothProfile.STATE_CONNECTING
                 discoveryStarted = false
                 bluetoothGatt = try {
                     device.connectGatt(context, false, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
@@ -449,6 +448,7 @@ class BluetoothPeripheral internal constructor(
                     null
                 }
                 bluetoothGatt?.let {
+                    bluetoothGattCallback.onConnectionStateChange(it, HciStatus.SUCCESS.value, BluetoothProfile.STATE_CONNECTING)
                     connectTimestamp = SystemClock.elapsedRealtime()
                     startConnectionTimer(this@BluetoothPeripheral)
                 }
@@ -469,15 +469,15 @@ class BluetoothPeripheral internal constructor(
             scope.launch {
                 Logger.d(TAG, "autoConnect to '%s' (%s) using TRANSPORT_LE", name, address)
                 registerBondingBroadcastReceivers()
-                state = BluetoothProfile.STATE_CONNECTING
                 discoveryStarted = false
                 bluetoothGatt = try {
                     device.connectGatt(context, true, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
                 } catch (e: SecurityException) {
-                    Logger.d(TAG, "exception")
+                    Logger.e(TAG, "connectGatt exception")
                     null
                 }
                 bluetoothGatt?.let {
+                    bluetoothGattCallback.onConnectionStateChange(it, HciStatus.SUCCESS.value, BluetoothProfile.STATE_CONNECTING)
                     connectTimestamp = SystemClock.elapsedRealtime()
                 }
             }
@@ -557,7 +557,9 @@ class BluetoothPeripheral internal constructor(
             // Since we will not get a callback on onConnectionStateChange for this, we issue the disconnect ourselves
             scope.launch {
                 delay(50)
-                bluetoothGattCallback.onConnectionStateChange(bluetoothGatt, HciStatus.SUCCESS.value, BluetoothProfile.STATE_DISCONNECTED)
+                bluetoothGatt?.let {
+                    bluetoothGattCallback.onConnectionStateChange(bluetoothGatt, HciStatus.SUCCESS.value, BluetoothProfile.STATE_DISCONNECTED)
+                }
             }
         } else {
             // Cancel active connection and onConnectionStateChange will be called by Android
@@ -573,10 +575,14 @@ class BluetoothPeripheral internal constructor(
      */
     private fun disconnect() {
         if (state == BluetoothProfile.STATE_CONNECTED || state == BluetoothProfile.STATE_CONNECTING) {
-            state = BluetoothProfile.STATE_DISCONNECTING
+            bluetoothGatt?.let {
+                bluetoothGattCallback.onConnectionStateChange(it, HciStatus.SUCCESS.value, BluetoothProfile.STATE_DISCONNECTING)
+            }
+
             scope.launch {
                 if (state == BluetoothProfile.STATE_DISCONNECTING && bluetoothGatt != null) {
                     bluetoothGatt?.disconnect()
+                    Logger.i(TAG, "force disconnect '%s' (%s)", name, address)
                 }
             }
         } else {
@@ -1515,7 +1521,9 @@ class BluetoothPeripheral internal constructor(
             disconnect()
             scope.launch {
                 delay(50)
-                bluetoothGattCallback.onConnectionStateChange(bluetoothGatt, HciStatus.CONNECTION_FAILED_ESTABLISHMENT.value, BluetoothProfile.STATE_DISCONNECTED)
+                bluetoothGatt?.let {
+                    bluetoothGattCallback.onConnectionStateChange(bluetoothGatt, HciStatus.CONNECTION_FAILED_ESTABLISHMENT.value, BluetoothProfile.STATE_DISCONNECTED)
+                }
             }
         }
     }
