@@ -156,6 +156,10 @@ class BluetoothCentralManager(private val context: Context) {
 
     @JvmField
     val internalCallback: InternalCallback = object : InternalCallback {
+        override fun connecting(peripheral: BluetoothPeripheral) {
+            scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.CONNECTING)}
+        }
+
         override fun connected(peripheral: BluetoothPeripheral) {
             connectionRetries.remove(peripheral.address)
             unconnectedPeripherals.remove(peripheral.address)
@@ -193,6 +197,10 @@ class BluetoothCentralManager(private val context: Context) {
                 }
                 scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED)}
             }
+        }
+
+        override fun disconnecting(peripheral: BluetoothPeripheral) {
+            scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTING)}
         }
 
         override fun disconnected(peripheral: BluetoothPeripheral, status: HciStatus) {
