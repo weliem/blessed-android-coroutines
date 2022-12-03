@@ -850,7 +850,6 @@ class BluetoothPeripheral internal constructor(
     }
 
 
-
     suspend fun writeCharacteristic(serviceUUID: UUID, characteristicUUID: UUID, value: ByteArray, writeType: WriteType): ByteArray {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
 

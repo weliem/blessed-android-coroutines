@@ -9,9 +9,9 @@ fun ByteArray.asString() : String {
     return parser.stringValue
 }
 
-fun ByteArray.asHexString() : String {
-    return BluetoothBytesParser.bytes2String(this)
-}
+//fun ByteArray.asHexString() : String {
+//    return BluetoothBytesParser.bytes2String(this)
+//}
 
 fun ByteArray.asUInt8() : UInt? {
     if (this.isEmpty()) return null
