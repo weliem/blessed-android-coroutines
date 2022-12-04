@@ -50,6 +50,71 @@ class BluetoothBytesParser (
      */
     constructor(value: ByteArray, byteOrder: ByteOrder) : this(value, 0, byteOrder)
 
+    fun getUInt8() : UInt {
+        val result = value[offset].toUInt()
+        offset += 1
+        return result
+    }
+
+    fun getInt8() : Int {
+        val result = value[offset].toInt()
+        offset += 1
+        return result
+    }
+
+    fun getUInt16() : UInt {
+        val result = value.getUInt16(offset.toUInt(), byteOrder)
+        offset += 2
+        return result
+    }
+
+    fun getInt16() : Int {
+        val result = value.getInt16(offset.toUInt(), byteOrder)
+        offset += 2
+        return result
+    }
+
+    fun getUInt24() : UInt {
+        val result = value.getUInt24(offset.toUInt(), byteOrder)
+        offset += 3
+        return result
+    }
+
+    fun getInt24() : Int {
+        val result = value.getInt24(offset.toUInt(), byteOrder)
+        offset += 3
+        return result
+    }
+
+    fun getUInt32() : UInt {
+        val result = value.getUInt32(offset.toUInt(), byteOrder)
+        offset += 4
+        return result
+    }
+
+    fun getInt32() : Int {
+        val result = value.getInt32(offset.toUInt(), byteOrder)
+        offset += 4
+        return result
+    }
+
+    fun getFloat() : Double {
+        val result = value.getFloat(offset.toUInt(), byteOrder)
+        offset += 4
+        return result
+    }
+
+    fun getSFloat() : Double {
+        val result = value.getSFloat(offset.toUInt(), byteOrder)
+        offset += 2
+        return result
+    }
+
+    fun setUInt16(uint16: UInt) {
+        val uint16array = byteArrayOf(uint16, 2u, LITTLE_ENDIAN)
+        value += uint16array
+    }
+
     /**
      * Return an Integer value of the specified type. This operation will automatically advance the internal offset to the next position.
      *

@@ -31,6 +31,7 @@ class BluetoothCentral internal constructor(address: String, name: String?) {
     val address: String
     private val name: String?
     var currentMtu = 23
+
     fun getName(): String {
         return name ?: ""
     }
