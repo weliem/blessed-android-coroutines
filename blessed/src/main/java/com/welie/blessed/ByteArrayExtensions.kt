@@ -5,7 +5,6 @@ import java.nio.ByteOrder
 import java.nio.ByteOrder.LITTLE_ENDIAN
 import kotlin.math.pow
 
-
 fun Byte.asHexString(): String {
     var hexString = this.toUByte().toString(16).uppercase()
     if (this.toUInt() < 16u) hexString = "0$hexString"
@@ -41,6 +40,10 @@ private fun unsignedToSigned(unsigned: UInt, size: UInt): Int {
     return unsigned.toInt()
 }
 
+/**
+ * Convert an unsigned long value to a two's-complement encoded
+ * signed value.
+ */
 private fun unsignedToSigned(unsigned: ULong, size: ULong): Long {
     if (size > 56u) throw IllegalArgumentException("size too large")
 
@@ -51,6 +54,17 @@ private fun unsignedToSigned(unsigned: ULong, size: ULong): Long {
         return  -1 * (signBit - nonsignedPart).toLong()
     }
     return unsigned.toLong()
+}
+
+/**
+ * Convert an integer into the signed bits of a given length.
+ */
+private fun intToSignedBits(value: Int, size: Int): Int {
+    var i = value
+    if (i < 0) {
+        i = (1 shl size - 1) + (i and (1 shl size - 1) - 1)
+    }
+    return i
 }
 
 fun ByteArray.getULong(offset: UInt = 0u, length: UInt, order: ByteOrder) : ULong {
@@ -125,7 +139,7 @@ fun ByteArray.getFloat(offset : UInt = 0u, order: ByteOrder = LITTLE_ENDIAN) : D
     return mantissa.toDouble() * 10.0.pow(exponent)
 }
 
-fun byteArrayOf(value: UInt, length: UInt, order : ByteOrder) : ByteArray {
+fun byteArrayOf(value: UInt, length: UInt, order : ByteOrder = LITTLE_ENDIAN) : ByteArray {
     val result = ByteArray(size =  length.toInt())
     val end = length.toInt() - 1
     val range : IntProgression = if (order == LITTLE_ENDIAN) 0..end else IntProgression.fromClosedRange (end, 0, -1)
@@ -141,6 +155,43 @@ fun byteArrayOf(value: UInt, length: UInt, order : ByteOrder) : ByteArray {
 
 fun byteArrayOf(value: Int, length: UInt, order : ByteOrder) : ByteArray {
     return byteArrayOf(value.toUInt(), length, order)
+}
+
+fun byteArrayOf(value: Double, length: UInt, precision: Int, order : ByteOrder = LITTLE_ENDIAN) : ByteArray {
+    val result = ByteArray(size =  length.toInt())
+    val mantissa = (value * 10.0.pow(precision)).toInt()
+    val exponent = -precision
+
+    if (length == 2u) {
+        val localMantissa = intToSignedBits(mantissa, 12)
+        val localExponent = intToSignedBits(exponent, 4)
+        var index = 0
+        if (order == LITTLE_ENDIAN) {
+            result[index++] = (localMantissa and 0xFF).toByte()
+            result[index] = (localMantissa shr 8 and 0x0F).toByte()
+            result[index] = (result[index] + (localExponent and 0x0F shl 4)).toByte()
+        } else {
+            result[index] = (localMantissa shr 8 and 0x0F).toByte()
+            result[index++] = (result[index] + (localExponent and 0x0F shl 4)).toByte()
+            result[index] = (localMantissa and 0xFF).toByte()
+        }
+    } else if(length == 4u) {
+        val localMantissa = intToSignedBits(mantissa, 24)
+        val localExponent = intToSignedBits(exponent, 8)
+        var index = 0
+        if (order == LITTLE_ENDIAN) {
+            result[index++] = (localMantissa and 0xFF).toByte()
+            result[index++] = (localMantissa shr 8 and 0xFF).toByte()
+            result[index++] = (localMantissa shr 16 and 0xFF).toByte()
+            result[index] = (result[index] + (localExponent and 0xFF)).toByte()
+        } else {
+            result[index++] = (result[index] + (localExponent and 0xFF)).toByte()
+            result[index++] = (localMantissa shr 16 and 0xFF).toByte()
+            result[index++] = (localMantissa shr 8 and 0xFF).toByte()
+            result[index] = (localMantissa and 0xFF).toByte()
+        }
+    }
+    return result
 }
 
 fun byteArrayOf(hexString: String): ByteArray {

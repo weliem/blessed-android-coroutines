@@ -10,13 +10,13 @@ class ByteArrayTests {
 
     @Test
     fun getUInt16_pos_LE_test() {
-        val value = byteArrayOf(0x01,0x02)
+        val value = byteArrayOf(0x01u,0x02u)
         assertEquals(513u, value.getUInt16(order = LITTLE_ENDIAN))
     }
 
     @Test
     fun getUInt16_pos_BE_test() {
-        val value = byteArrayOf(0x01,0x02)
+        val value = byteArrayOf(0x01u,0x02u)
         assertEquals(258u, value.getUInt16(order = BIG_ENDIAN))
     }
 
@@ -34,13 +34,13 @@ class ByteArrayTests {
 
     @Test
     fun getInt16_pos_LE_test() {
-        val value = byteArrayOf(0x01,0x02)
+        val value = byteArrayOf(0x01u,0x02u)
         assertEquals(513, value.getInt16(order = LITTLE_ENDIAN))
     }
 
     @Test
     fun getInt16_pos_BE_test() {
-        val value = byteArrayOf(0x01,0x02)
+        val value = byteArrayOf(0x01u,0x02u)
         assertEquals(258, value.getInt16(order = BIG_ENDIAN))
     }
 
@@ -88,7 +88,7 @@ class ByteArrayTests {
     }
 
     @Test
-    fun getFloat16_pos_random_LE_test() {
+    fun getFloat16_pos_random_BE_test() {
         val value = byteArrayOf("F070")
         assertEquals(11.2, value.getSFloat(order = BIG_ENDIAN), 0.1)
     }
@@ -115,6 +115,30 @@ class ByteArrayTests {
     fun hexString_test() {
         val value = byteArrayOf("F870")
         assertEquals("F870", value.asHexString())
+    }
+
+    @Test
+    fun byteArrayOf_SFloat_LE_test() {
+        val value = byteArrayOf(11.2, 2u, 1, LITTLE_ENDIAN)
+        assertEquals("70F0", value.asHexString())
+    }
+
+    @Test
+    fun byteArrayOf_SFloat_BE_test() {
+        val value = byteArrayOf(11.2, 2u, 1, BIG_ENDIAN)
+        assertEquals("F070", value.asHexString())
+    }
+
+    @Test
+    fun byteArrayOf_Float_LE_test() {
+        val value = byteArrayOf(36.4, 4u, 1, LITTLE_ENDIAN)
+        assertEquals("6C0100FF", value.asHexString())
+    }
+
+    @Test
+    fun byteArrayOf_Float_BE_test() {
+        val value = byteArrayOf(36.4, 4u, 1, BIG_ENDIAN)
+        assertEquals("FF00016C", value.asHexString())
     }
 
     @Test
