@@ -82,14 +82,14 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
                     handleDeviceDisconnected(device)
                 }
             } else {
-                Logger.i(TAG, "Device '%s' disconnected with status %d", device.name, status)
+                Logger.i(TAG, "Device '%s' disconnected with status %d", device.name ?: "null", status)
                 handleDeviceDisconnected(device)
             }
         }
 
         private fun handleDeviceConnected(device: BluetoothDevice) {
             Logger.i(TAG, "Central '%s' (%s) connected", device.name, device.address)
-            val bluetoothCentral = BluetoothCentral(device.address, device.name)
+            val bluetoothCentral = BluetoothCentral(device.address, device.name ?: "null")
             connectedCentralsMap[bluetoothCentral.address] = bluetoothCentral
             mainHandler.post { callback.onCentralConnected(bluetoothCentral) }
         }
@@ -476,7 +476,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
 
     private fun cancelConnection(bluetoothDevice: BluetoothDevice) {
         Objects.requireNonNull(bluetoothDevice, DEVICE_IS_NULL)
-        Logger.i(TAG, "cancelConnection with '%s' (%s)", bluetoothDevice.name, bluetoothDevice.address)
+        Logger.i(TAG, "cancelConnection with '%s' (%s)", bluetoothDevice.name ?: "null", bluetoothDevice.address)
         bluetoothGattServer.cancelConnection(bluetoothDevice)
     }
 
