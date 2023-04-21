@@ -88,7 +88,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         }
 
         private fun handleDeviceConnected(device: BluetoothDevice) {
-            Logger.i(TAG, "Central '%s' (%s) connected", device.name, device.address)
+            Logger.i(TAG, "Central '%s' (%s) connected", device.name ?: "null", device.address)
             val bluetoothCentral = BluetoothCentral(device.address, device.name ?: "null")
             connectedCentralsMap[bluetoothCentral.address] = bluetoothCentral
             mainHandler.post { callback.onCentralConnected(bluetoothCentral) }
@@ -104,7 +104,6 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         override fun onServiceAdded(status: Int, service: BluetoothGattService) {
             mainHandler.post { callback.onServiceAdded(GattStatus.fromValue(status), service) }
             completedCommand()
-        }
 
         override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic) {
             Logger.i(TAG, "read request for characteristic <%s> with offset %d", characteristic.uuid, offset)
