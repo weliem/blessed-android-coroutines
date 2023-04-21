@@ -88,7 +88,7 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         }
 
         private fun handleDeviceConnected(device: BluetoothDevice) {
-            Logger.i(TAG, "Central '%s' (%s) connected", device.name, device.address)
+            Logger.i(TAG, "Central '%s' (%s) connected", device.name ?: "null", device.address)
             val bluetoothCentral = BluetoothCentral(device.address, device.name ?: "null")
             connectedCentralsMap[bluetoothCentral.address] = bluetoothCentral
             mainHandler.post { callback.onCentralConnected(bluetoothCentral) }
