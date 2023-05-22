@@ -434,7 +434,7 @@ class BluetoothPeripheral internal constructor(
     /**
      * Connect directly with the bluetooth device. This call will timeout in max 30 seconds (5 seconds on Samsung phones)
      */
-    fun connect(tryCount: Int = 10) {
+    fun connect(tryCount: Int = 10, delayBeforeConnectRetryInMs: Long = DELAY_BEFORE_CONNECT_RETRY_IN_MS) {
         if (state == BluetoothProfile.STATE_DISCONNECTED) {
             scope.launch {
                 delay(DIRECT_CONNECTION_DELAY_IN_MS)
@@ -457,8 +457,8 @@ class BluetoothPeripheral internal constructor(
             Logger.e(TAG, "peripheral '%s' not yet disconnected, will not connect", name)
             if (tryCount > 0) {
                 scope.launch {
-                    Logger.d(TAG, "Retrying in ${DELAY_BEFORE_CONNECT_RETRY_IN_MS}ms...")
-                    delay(DELAY_BEFORE_CONNECT_RETRY_IN_MS)
+                    Logger.d(TAG, "Retrying in ${delayBeforeConnectRetryInMs}ms...")
+                    delay(delayBeforeConnectRetryInMs)
                     connect(tryCount - 1)
                 }
             } else {
@@ -471,7 +471,7 @@ class BluetoothPeripheral internal constructor(
      * Try to connect to a device whenever it is found by the OS. This call never times out.
      * Connecting to a device will take longer than when using connect()
      */
-    fun autoConnect(tryCount: Int = 10) {
+    fun autoConnect(tryCount: Int = 10, delayBeforeConnectRetryInMs: Long = DELAY_BEFORE_CONNECT_RETRY_IN_MS) {
         // Note that this will only work for devices that are known! After turning BT on/off Android doesn't know the device anymore!
         // https://stackoverflow.com/questions/43476369/android-save-ble-device-to-reconnect-after-app-close
         if (state == BluetoothProfile.STATE_DISCONNECTED) {
@@ -494,8 +494,8 @@ class BluetoothPeripheral internal constructor(
             Logger.e(TAG, "peripheral '%s' not yet disconnected, will not reconnect", name)
             if (tryCount > 0) {
                 scope.launch {
-                    Logger.d(TAG, "Retrying in ${DELAY_BEFORE_CONNECT_RETRY_IN_MS}ms...")
-                    delay(DELAY_BEFORE_CONNECT_RETRY_IN_MS)
+                    Logger.d(TAG, "Retrying in ${delayBeforeConnectRetryInMs}ms...")
+                    delay(delayBeforeConnectRetryInMs)
                     autoConnect(tryCount - 1)
                 }
             } else {
