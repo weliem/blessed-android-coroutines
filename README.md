@@ -8,7 +8,7 @@ BLESSED is a very compact Bluetooth Low Energy (BLE) library for Android 8 and h
 
 ## Installation
 
-This library is available on Jitpack. Include the following in your gradle file:
+This library is available on Jitpack. Include the following in your projects's build.gradle file:
 
 ```groovy
 allprojects {
@@ -17,12 +17,42 @@ allprojects {
         maven { url 'https://jitpack.io' }
     }
 }
+```
 
+Include the following in your app's build.gradle file under `dependencies` block:
+
+```groovy
 dependencies {
+    ...
     implementation "com.github.weliem:blessed-android-coroutines:$version"
 }
 ```
-where `$version` is the latest published version in Jitpack [![](https://jitpack.io/v/weliem/blessed-android-coroutines.svg)](https://jitpack.io/#weliem/blessed-android-coroutines)
+
+where `$version` is the latest published version in Jitpack [![Jitpack](https://jitpack.io/v/weliem/blessed-android-coroutines.svg)](https://jitpack.io/#weliem/blessed-android-coroutines)
+
+### Adding permissions
+
+If you plan on supporting older devices that are on Android 11 and below, then you need to add the below permissions to your AndroidManifest.xml file:
+
+```xml
+    <!-- Needed to target Android 11 and lower   -->
+    <!-- Link: https://developer.android.com/guide/topics/connectivity/bluetooth/permissions#declare-android11-or-lower-->
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.ACCESS_COARSE_LOCATION"
+        android:maxSdkVersion="30" />
+
+    <!-- Link: https://developer.android.com/guide/topics/connectivity/bluetooth/permissions  -->
+    <!-- Request legacy Bluetooth permissions on older devices. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+```
 
 ## Overview of classes
 
