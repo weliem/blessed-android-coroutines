@@ -1,6 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-     xmlns:tools="http://schemas.android.com/tools"
-     package="com.welie.blessed">
+     xmlns:tools="http://schemas.android.com/tools">
 
      <!-- Needed only if code looks for Bluetooth devices.
          Since the code doesn't use Bluetooth scan results to derive physical
