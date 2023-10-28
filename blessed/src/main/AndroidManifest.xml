@@ -1,24 +1,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="com.welie.blessed">
+     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission
-        android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="s" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.ACCESS_COARSE_LOCATION"
-        android:maxSdkVersion="30" />
+     <!-- Needed only if code looks for Bluetooth devices.
+         Since the code doesn't use Bluetooth scan results to derive physical
+         location information, it is strongly asserted that the code
+         doesn't derive physical location.
+         Link:
+     https://developer.android.com/guide/topics/connectivity/bluetooth/permissions#assert-never-for-location
+         -->
+     <uses-permission
+          android:name="android.permission.BLUETOOTH_SCAN"
+          android:usesPermissionFlags="neverForLocation"
+          tools:targetApi="s" />
 
+     <!-- Needed only if code communicates with already-paired Bluetooth
+         devices. -->
+     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+     <!-- Needed only if code makes the device discoverable to Bluetooth
+         devices. -->
+     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
 </manifest>
+ 

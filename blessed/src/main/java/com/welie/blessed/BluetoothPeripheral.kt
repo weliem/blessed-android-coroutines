@@ -337,7 +337,7 @@ class BluetoothPeripheral internal constructor(
         // See if the initial connection failed
         if (previousState == BluetoothProfile.STATE_CONNECTING) {
             val timePassed = SystemClock.elapsedRealtime() - connectTimestamp
-            val isTimeout = timePassed > timoutThreshold
+            val isTimeout = timePassed > timeoutThreshold
             val adjustedStatus = if (status == HciStatus.ERROR && isTimeout) HciStatus.CONNECTION_FAILED_ESTABLISHMENT else status
             Logger.d(TAG, "connection failed with status '%s'", adjustedStatus)
             completeDisconnect(false, adjustedStatus)
@@ -693,7 +693,7 @@ class BluetoothPeripheral internal constructor(
      * Get the BluetoothGattCharacteristic object for a characteristic UUID.
      *
      * @param serviceUUID        the service UUID the characteristic is part of
-     * @param characteristicUUID the UUID of the chararacteristic
+     * @param characteristicUUID the UUID of the characteristic
      * @return the BluetoothGattCharacteristic object for the characteristic UUID or null if the peripheral does not have a characteristic with the specified UUID
      */
     fun getCharacteristic(serviceUUID: UUID, characteristicUUID: UUID): BluetoothGattCharacteristic? {
@@ -898,7 +898,7 @@ class BluetoothPeripheral internal constructor(
      * @param characteristic the characteristic to write to
      * @param value          the byte array to write
      * @param writeType      the write type to use when writing.
-     * @return true if a write operation was succesfully enqueued, otherwise false
+     * @return true if a write operation was successfully enqueued, otherwise false
      */
     private fun writeCharacteristic(characteristic: BluetoothGattCharacteristic, value: ByteArray, writeType: WriteType, resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
@@ -968,7 +968,7 @@ class BluetoothPeripheral internal constructor(
      * Read the value of a descriptor.
      *
      * @param descriptor the descriptor to read
-     * @return true if a write operation was succesfully enqueued, otherwise false
+     * @return true if a write operation was successfully enqueued, otherwise false
      */
     private fun readDescriptor(descriptor: BluetoothGattDescriptor, resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
@@ -1020,7 +1020,7 @@ class BluetoothPeripheral internal constructor(
      *
      * @param descriptor the descriptor to write to
      * @param value      the value to write
-     * @return true if a write operation was succesfully enqueued, otherwise false
+     * @return true if a write operation was successfully enqueued, otherwise false
      */
     private fun writeDescriptor(descriptor: BluetoothGattDescriptor, value: ByteArray, resultCallback: BluetoothPeripheralCallback): Boolean {
         require(isConnected) { PERIPHERAL_NOT_CONNECTED }
@@ -1537,7 +1537,7 @@ class BluetoothPeripheral internal constructor(
 
         timeoutJob = scope.launch {
             delay(CONNECTION_TIMEOUT_IN_MS)
-            Logger.e(TAG, "connection timout, disconnecting '%s'", peripheral.name)
+            Logger.e(TAG, "connection timeout, disconnecting '%s'", peripheral.name)
             disconnect()
             scope.launch {
                 delay(50)
@@ -1553,7 +1553,7 @@ class BluetoothPeripheral internal constructor(
         timeoutJob = null
     }
 
-    private val timoutThreshold: Int
+    private val timeoutThreshold: Int
         get() {
             val manufacturer = Build.MANUFACTURER
             return if (manufacturer.equals("samsung", ignoreCase = true)) {
