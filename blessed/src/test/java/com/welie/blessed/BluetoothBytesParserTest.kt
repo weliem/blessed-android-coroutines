@@ -9,7 +9,6 @@ import java.nio.ByteOrder
 
 
 class BluetoothBytesParserTest {
-    private val mockContext = mockk<Context>()
 
     @Test
     fun first_test() {
