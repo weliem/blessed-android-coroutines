@@ -53,7 +53,9 @@ abstract class BluetoothPeripheralManagerCallback {
      * @param bluetoothCentral the central that is doing the request
      * @param characteristic the characteristic to be read
      */
-    open fun onCharacteristicRead(bluetoothCentral: BluetoothCentral, characteristic: BluetoothGattCharacteristic) {}
+    open fun onCharacteristicRead(bluetoothCentral: BluetoothCentral, characteristic: BluetoothGattCharacteristic): ReadResponse {
+        return ReadResponse(GattStatus.SUCCESS, ByteArray(0))
+    }
 
     /**
      * A remote central has requested to write a local characteristic.
@@ -76,6 +78,19 @@ abstract class BluetoothPeripheralManagerCallback {
     }
 
     /**
+     * A remote central has successfully written a new value to a characteristic
+     *
+     *
+     * This callback is called after a response has been sent to the BluetoothCentral.
+     * On api-level < 33 the value has been set to the characteristic.
+     *
+     * @param bluetoothCentral the central that did the write
+     * @param characteristic   the characteristic that was written
+     * @param value            the value the central has written
+     */
+    open fun onCharacteristicWriteCompleted(bluetoothCentral: BluetoothCentral, characteristic: BluetoothGattCharacteristic, value: ByteArray) {}
+
+    /**
      * A remote central has requested to read a local descriptor.
      *
      *
@@ -86,7 +101,9 @@ abstract class BluetoothPeripheralManagerCallback {
      * @param bluetoothCentral the central that is doing the request
      * @param descriptor the descriptor to be read
      */
-    open fun onDescriptorRead(bluetoothCentral: BluetoothCentral, descriptor: BluetoothGattDescriptor) {}
+    open fun onDescriptorRead(bluetoothCentral: BluetoothCentral, descriptor: BluetoothGattDescriptor): ReadResponse {
+        return ReadResponse(GattStatus.SUCCESS, ByteArray(0))
+    }
 
     /**
      * A remote central has requested to write a local descriptor.
@@ -107,6 +124,19 @@ abstract class BluetoothPeripheralManagerCallback {
     open fun onDescriptorWrite(bluetoothCentral: BluetoothCentral, descriptor: BluetoothGattDescriptor, value: ByteArray): GattStatus {
         return GattStatus.SUCCESS
     }
+
+    /**
+     * A remote central has successfully written a new value to a descriptor
+     *
+     *
+     * This callback is called after a response has been sent.
+     * On api-level < 33, the value has been set to the descriptor.
+     *
+     * @param bluetoothCentral the central that did the write
+     * @param descriptor       the descriptor that was written
+     * @param value            the value the central has written
+     */
+    open fun onDescriptorWriteCompleted(bluetoothCentral: BluetoothCentral, descriptor: BluetoothGattDescriptor, value: ByteArray) {}
 
     /**
      * A remote central has enabled notifications or indications for a characteristic

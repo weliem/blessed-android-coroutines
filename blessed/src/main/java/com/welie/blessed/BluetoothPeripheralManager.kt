@@ -32,6 +32,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import com.welie.blessed.BluetoothBytesParser.Companion.bytes2String
@@ -44,19 +45,26 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * This class represent a peripheral running on the local phone
  */
 @SuppressLint("MissingPermission")
+@Suppress("unused", "deprecation")
 class BluetoothPeripheralManager(private val context: Context, private val bluetoothManager: BluetoothManager, private val callback: BluetoothPeripheralManagerCallback) {
 //    private val context: Context
     private val mainHandler = Handler(Looper.getMainLooper())
 //    private val bluetoothManager: BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter
     private val bluetoothLeAdvertiser: BluetoothLeAdvertiser
+    var isAdvertising: Boolean = false
+        private set
+
  //   private val callback: BluetoothPeripheralManagerCallback
     val commandQueue: Queue<Runnable> = ConcurrentLinkedQueue()
     private val writeLongCharacteristicTemporaryBytes = HashMap<BluetoothGattCharacteristic, ByteArray>()
     private val writeLongDescriptorTemporaryBytes = HashMap<BluetoothGattDescriptor, ByteArray>()
     private val connectedCentralsMap: MutableMap<String, BluetoothCentral> = ConcurrentHashMap()
     private var currentNotifyCharacteristic: BluetoothGattCharacteristic? = null
+    private val centralsWantingNotifications = HashMap<BluetoothGattCharacteristic, MutableSet<String>>()
+    private val centralsWantingIndications = HashMap<BluetoothGattCharacteristic, MutableSet<String>>()
     private var currentNotifyValue = ByteArray(0)
+    private var currentReadValue = ByteArray(0)
 
     @Volatile
     private var commandQueueBusy = false
@@ -89,14 +97,17 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
 
         private fun handleDeviceConnected(device: BluetoothDevice) {
             Logger.i(TAG, "Central '%s' (%s) connected", device.name ?: "null", device.address)
-            val bluetoothCentral = BluetoothCentral(device.address, device.name ?: "null")
+            val bluetoothCentral = BluetoothCentral(device)
             connectedCentralsMap[bluetoothCentral.address] = bluetoothCentral
             mainHandler.post { callback.onCentralConnected(bluetoothCentral) }
         }
 
         private fun handleDeviceDisconnected(device: BluetoothDevice) {
             val bluetoothCentral = getCentral(device)
-            Logger.i(TAG, "Central '%s' (%s) disconnected", bluetoothCentral.getName(), bluetoothCentral.address)
+            Logger.i(TAG, "Central '%s' (%s) disconnected", bluetoothCentral.name, bluetoothCentral.address)
+            if (bluetoothCentral.bondState != BondState.BONDED) {
+                removeCentralFromWantingAnything(bluetoothCentral)
+            }
             mainHandler.post { callback.onCentralDisconnected(bluetoothCentral) }
             removeCentral(device)
         }
@@ -110,13 +121,22 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
             Logger.i(TAG, "read request for characteristic <%s> with offset %d", characteristic.uuid, offset)
             val bluetoothCentral = getCentral(device)
             mainHandler.post { // Call onCharacteristic before any responses are sent, even if it is a long read
+                var status = GattStatus.SUCCESS
+
+                // Call onCharacteristic before any responses are sent, even if it is a long read
                 if (offset == 0) {
-                    callback.onCharacteristicRead(bluetoothCentral, characteristic)
+                    val response = callback.onCharacteristicRead(bluetoothCentral, characteristic)
+                    status = response.status
+                    currentReadValue = response.value
                 }
 
-                // If data is longer than MTU - 1, cut the array. Only ATT_MTU - 1 bytes can be sent in Long Read.
-                val value = copyOf(nonnullOf(characteristic.value), offset, bluetoothCentral.currentMtu - 1)
-                bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+                // Get the byte array starting at the offset
+                if (offset < currentReadValue.size) {
+                    val value = chopValue(currentReadValue, offset)
+                    bluetoothGattServer.sendResponse(device, requestId, status.value, offset, value)
+                } else {
+                    bluetoothGattServer.sendResponse(device, requestId, GattStatus.INVALID_OFFSET.value, offset, ByteArray(0))
+                }
             }
         }
 
@@ -137,7 +157,9 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
                 if (!preparedWrite) {
                     status = callback.onCharacteristicWrite(bluetoothCentral, characteristic, safeValue)
                     if (status === GattStatus.SUCCESS) {
-                        characteristic.value = safeValue
+                        if (Build.VERSION.SDK_INT < 33) {
+                            characteristic.value = safeValue
+                        }
                     }
                 } else {
                     if (offset == 0) {
@@ -154,20 +176,28 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
                 if (responseNeeded) {
                     bluetoothGattServer.sendResponse(device, requestId, status.value, offset, safeValue)
                 }
+                if (status == GattStatus.SUCCESS && !preparedWrite) {
+                    callback.onCharacteristicWriteCompleted(bluetoothCentral, characteristic, safeValue)
+                }
             }
         }
 
         override fun onDescriptorReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, descriptor: BluetoothGattDescriptor) {
             Logger.i(TAG, "read request for descriptor <%s> with offset %d", descriptor.uuid, offset)
             val bluetoothCentral = getCentral(device)
-            mainHandler.post { // Call onDescriptorRead before any responses are sent, even if it is a long read
+            mainHandler.post {
+                var status = GattStatus.SUCCESS
+
+                // Call onDescriptorRead before any responses are sent, even if it is a long read
                 if (offset == 0) {
-                    callback.onDescriptorRead(bluetoothCentral, descriptor)
+                    val response = callback.onDescriptorRead(bluetoothCentral, descriptor)
+                    status = response.status
+                    currentReadValue = response.value
                 }
 
-                // If data is longer than MTU - 1, cut the array. Only ATT_MTU - 1 bytes can be sent in Long Read.
-                val value = copyOf(nonnullOf(descriptor.value), offset, bluetoothCentral.currentMtu - 1)
-                bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+                // Get the byte array starting at the offset
+                val value = chopValue(currentReadValue, offset)
+                bluetoothGattServer.sendResponse(device, requestId, status.value, offset, value)
             }
         }
 
@@ -206,21 +236,35 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
                     }
                 }
                 if (status === GattStatus.SUCCESS && !preparedWrite) {
-                    descriptor.value = safeValue
+                    if (Build.VERSION.SDK_INT < 33) {
+                        descriptor.value = safeValue
+                    }
                 }
                 if (responseNeeded) {
                     bluetoothGattServer.sendResponse(device, requestId, status.value, offset, safeValue)
                 }
-                if (status === GattStatus.SUCCESS && descriptor.uuid == CCC_DESCRIPTOR_UUID) {
+                if (responseNeeded) {
+                    bluetoothGattServer.sendResponse(device, requestId, status.value, offset, safeValue)
+                }
+                if (status == GattStatus.SUCCESS && descriptor.uuid == CCC_DESCRIPTOR_UUID) {
                     if (Arrays.equals(safeValue, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
                         || Arrays.equals(safeValue, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
                     ) {
+                        if (Arrays.equals(safeValue, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)) {
+                            addCentralWantingIndications(characteristic, bluetoothCentral)
+                        } else {
+                            addCentralWantingNotifications(characteristic, bluetoothCentral)
+                        }
                         Logger.i(TAG, "notifying enabled for <%s>", characteristic.uuid)
                         callback.onNotifyingEnabled(bluetoothCentral, characteristic)
                     } else {
                         Logger.i(TAG, "notifying disabled for <%s>", characteristic.uuid)
+                        removeCentralWantingIndications(characteristic, bluetoothCentral)
+                        removeCentralWantingNotifications(characteristic, bluetoothCentral)
                         callback.onNotifyingDisabled(bluetoothCentral, characteristic)
                     }
+                } else if (status == GattStatus.SUCCESS && !preparedWrite) {
+                    callback.onDescriptorWriteCompleted(bluetoothCentral, descriptor, safeValue)
                 }
             }
         }
@@ -248,23 +292,31 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
             if (execute) {
                 mainHandler.post {
                     var status = GattStatus.SUCCESS
-                    if (!writeLongCharacteristicTemporaryBytes.isEmpty()) {
+                    if (writeLongCharacteristicTemporaryBytes.isNotEmpty()) {
                         val characteristic = writeLongCharacteristicTemporaryBytes.keys.iterator().next()
 
                         // Ask callback if value is ok or not
                         status = callback.onCharacteristicWrite(bluetoothCentral, characteristic, writeLongCharacteristicTemporaryBytes[characteristic]!!)
                         if (status === GattStatus.SUCCESS) {
-                            characteristic.value = writeLongCharacteristicTemporaryBytes[characteristic]
+                            val value = writeLongCharacteristicTemporaryBytes[characteristic]
+                            if (Build.VERSION.SDK_INT < 33) {
+                                characteristic.value = value
+                            }
                             writeLongCharacteristicTemporaryBytes.clear()
+                            callback.onCharacteristicWriteCompleted(bluetoothCentral, characteristic, value!!)
                         }
-                    } else if (!writeLongDescriptorTemporaryBytes.isEmpty()) {
+                    } else if (writeLongDescriptorTemporaryBytes.isNotEmpty()) {
                         val descriptor = writeLongDescriptorTemporaryBytes.keys.iterator().next()
 
                         // Ask callback if value is ok or not
                         status = callback.onDescriptorWrite(bluetoothCentral, descriptor, writeLongDescriptorTemporaryBytes[descriptor]!!)
                         if (status === GattStatus.SUCCESS) {
-                            descriptor.value = writeLongDescriptorTemporaryBytes[descriptor]
+                            val value = writeLongDescriptorTemporaryBytes[descriptor]
+                            if (Build.VERSION.SDK_INT < 33) {
+                                descriptor.value = value
+                            }
                             writeLongDescriptorTemporaryBytes.clear()
+                            callback.onDescriptorWriteCompleted(bluetoothCentral, descriptor, value!!)
                         }
                     }
                     bluetoothGattServer.sendResponse(device, requestId, status.value, 0, null)
@@ -300,10 +352,11 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
             super.onPhyRead(device, txPhy, rxPhy, status)
         }
     }
-    @JvmField
-    val advertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
+
+    internal val advertiseCallback: AdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             Logger.i(TAG, "advertising started")
+            isAdvertising = true
             mainHandler.post { callback.onAdvertisingStarted(settingsInEffect) }
         }
 
@@ -314,8 +367,9 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         }
     }
 
-    protected fun onAdvertisingStopped() {
+    private fun onAdvertisingStopped() {
         Logger.i(TAG, "advertising stopped")
+        isAdvertising = false
         mainHandler.post { callback.onAdvertisingStopped() }
     }
 
@@ -346,6 +400,10 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
         if (!bluetoothAdapter.isMultipleAdvertisementSupported) {
             Logger.e(TAG, "device does not support advertising")
         } else {
+            if (isAdvertising) {
+                Logger.d(TAG, "already advertising, stopping advertising first")
+                stopAdvertising()
+            }
             bluetoothLeAdvertiser.startAdvertising(settings, advertiseData, scanResponse, advertiseCallback)
         }
     }
@@ -375,19 +433,12 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
      * @return true if the operation was enqueued, false otherwise
      */
     fun add(service: BluetoothGattService): Boolean {
-        Objects.requireNonNull(service, SERVICE_IS_NULL)
-        val result = commandQueue.add(Runnable {
+        return enqueue {
             if (!bluetoothGattServer.addService(service)) {
                 Logger.e(TAG, "adding service %s failed", service.uuid)
                 completedCommand()
             }
-        })
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue add service command")
         }
-        return result
     }
 
     /**
@@ -397,7 +448,6 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
      * @return true if the service was removed, otherwise false
      */
     fun remove(service: BluetoothGattService): Boolean {
-        Objects.requireNonNull(service, SERVICE_IS_NULL)
         return bluetoothGattServer.removeService(service)
     }
 
@@ -427,41 +477,38 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
      * @param characteristic the characteristic for which to send a notification
      * @return true if the operation was enqueued, otherwise false
      */
-    fun notifyCharacteristicChanged(value: ByteArray, characteristic: BluetoothGattCharacteristic): Boolean {
-        Objects.requireNonNull(value, CHARACTERISTIC_VALUE_IS_NULL)
-        Objects.requireNonNull(characteristic, CHARACTERISTIC_IS_NULL)
-        if (doesNotSupportNotifying(characteristic)) return false
-        var result = true
-        for (device in connectedDevices) {
-            if (!notifyCharacteristicChanged(copyOf(value), device, characteristic)) {
-                result = false
-            }
-        }
-        return result
+    fun notifyCharacteristicChanged(value: ByteArray, bluetoothCentral: BluetoothCentral, characteristic: BluetoothGattCharacteristic): Boolean {
+        val bluetoothDevice = bluetoothCentral.device
+        val confirm = supportsIndicate(characteristic) && getCentralsWantingIndications(characteristic).contains(bluetoothCentral)
+        return if (!confirm && !getCentralsWantingNotifications(characteristic).contains(bluetoothCentral)) {
+            false
+        } else notifyCharacteristicChanged(copyOf(value), bluetoothDevice, characteristic, confirm)
     }
 
-    private fun notifyCharacteristicChanged(value: ByteArray, bluetoothDevice: BluetoothDevice, characteristic: BluetoothGattCharacteristic): Boolean {
-        Objects.requireNonNull(value, CHARACTERISTIC_VALUE_IS_NULL)
-        Objects.requireNonNull(bluetoothDevice, DEVICE_IS_NULL)
-        Objects.requireNonNull(characteristic, CHARACTERISTIC_IS_NULL)
-        Objects.requireNonNull(characteristic.value, CHARACTERISTIC_VALUE_IS_NULL)
-        if (doesNotSupportNotifying(characteristic)) return false
-        val confirm = supportsIndicate(characteristic)
-        val result = commandQueue.add(Runnable {
-            currentNotifyValue = value
-            currentNotifyCharacteristic = characteristic
-            characteristic.value = value
-            if (!bluetoothGattServer.notifyCharacteristicChanged(bluetoothDevice, characteristic, confirm)) {
+    private fun notifyCharacteristicChanged(value: ByteArray, bluetoothDevice: BluetoothDevice, characteristic: BluetoothGattCharacteristic, confirm: Boolean): Boolean {
+        return if (doesNotSupportNotifying(characteristic)) false else enqueue {
+            if (!internalNotifyCharacteristicChanged(bluetoothDevice, characteristic, value, confirm)) {
                 Logger.e(TAG, "notifying characteristic changed failed for <%s>", characteristic.uuid)
                 completedCommand()
             }
-        })
-        if (result) {
-            nextCommand()
-        } else {
-            Logger.e(TAG, "could not enqueue notify command")
         }
-        return result
+    }
+
+    private fun internalNotifyCharacteristicChanged(
+        device: BluetoothDevice,
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+        confirm: Boolean
+    ): Boolean {
+        currentNotifyValue = value
+        currentNotifyCharacteristic = characteristic
+        return if (Build.VERSION.SDK_INT >= 33) {
+            val result = bluetoothGattServer.notifyCharacteristicChanged(device, characteristic, confirm, value)
+            result == BluetoothStatusCodes.SUCCESS
+        } else {
+            characteristic.value = value
+            bluetoothGattServer.notifyCharacteristicChanged(device, characteristic, confirm)
+        }
     }
 
     /**
@@ -470,12 +517,10 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
      * @param bluetoothCentral the Central
      */
     fun cancelConnection(bluetoothCentral: BluetoothCentral) {
-        Objects.requireNonNull(bluetoothCentral, CENTRAL_IS_NULL)
-        cancelConnection(bluetoothAdapter.getRemoteDevice(bluetoothCentral.address))
+        cancelConnection(bluetoothCentral.device)
     }
 
     private fun cancelConnection(bluetoothDevice: BluetoothDevice) {
-        Objects.requireNonNull(bluetoothDevice, DEVICE_IS_NULL)
         Logger.i(TAG, "cancelConnection with '%s' (%s)", bluetoothDevice.name ?: "null", bluetoothDevice.address)
         bluetoothGattServer.cancelConnection(bluetoothDevice)
     }
@@ -493,6 +538,22 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
             val bluetoothCentrals: Set<BluetoothCentral> = HashSet(connectedCentralsMap.values)
             return Collections.unmodifiableSet(bluetoothCentrals)
         }
+
+    /**
+     * Enqueue a runnable to the command queue
+     *
+     * @param command a Runnable containg a command
+     * @return true if the command was successfully enqueued, otherwise false
+     */
+    private fun enqueue(command: Runnable): Boolean {
+        val result = commandQueue.add(command)
+        if (result) {
+            nextCommand()
+        } else {
+            Logger.e(TAG, "could not enqueue command")
+        }
+        return result
+    }
 
     /**
      * The current command has been completed, move to the next command in the queue (if any)
@@ -531,21 +592,18 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
     }
 
     fun getCentral(address: String): BluetoothCentral? {
-        Objects.requireNonNull(address, ADDRESS_IS_NULL)
         return connectedCentralsMap[address]
     }
 
     private fun getCentral(device: BluetoothDevice): BluetoothCentral {
-        Objects.requireNonNull(device, DEVICE_IS_NULL)
         var result = connectedCentralsMap[device.address]
         if (result == null) {
-            result = BluetoothCentral(device.address, device.name)
+            result = BluetoothCentral(device)
         }
         return result
     }
 
     private fun removeCentral(device: BluetoothDevice) {
-        Objects.requireNonNull(device, DEVICE_IS_NULL)
         connectedCentralsMap.remove(device.address)
     }
 
@@ -577,6 +635,22 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
             bluetoothGattServerCallback.onConnectionStateChange(bluetoothAdapter.getRemoteDevice(bluetoothCentral.address), 0, BluetoothProfile.STATE_DISCONNECTED)
         }
         onAdvertisingStopped()
+    }
+
+    /**
+     * Chop only bytes at the beginning of the array based on offset, if array is bigger than MTU
+     * size Android OS will negotiate with central and it will issue multiple read requests.
+     *
+     * Important note: When [BluetoothDevice.TRANSPORT_BREDR] is used by the central,
+     * only a single read request is issued by the central regardless of MTU size.
+     */
+    private fun chopValue(value: ByteArray?, offset: Int): ByteArray {
+        var choppedValue = ByteArray(0)
+        if (value == null) return choppedValue
+        if (offset <= value.size) {
+            choppedValue = value.copyOfRange(offset, value.size)
+        }
+        return choppedValue
     }
 
     private fun copyOf(source: ByteArray, offset: Int, maxSize: Int): ByteArray {
@@ -617,6 +691,62 @@ class BluetoothPeripheralManager(private val context: Context, private val bluet
 
     private fun doesNotSupportNotifying(characteristic: BluetoothGattCharacteristic): Boolean {
         return !(supportsIndicate(characteristic) || supportsNotify(characteristic))
+    }
+
+    private fun addCentralWantingIndications(characteristic: BluetoothGattCharacteristic, central: BluetoothCentral) {
+        var centrals = centralsWantingIndications[characteristic]
+        if (centrals == null) {
+            centrals = HashSet()
+            centralsWantingIndications[characteristic] = centrals
+        }
+        centrals.add(central.address)
+    }
+
+    private fun addCentralWantingNotifications(characteristic: BluetoothGattCharacteristic, central: BluetoothCentral) {
+        var centrals = centralsWantingNotifications[characteristic]
+        if (centrals == null) {
+            centrals = HashSet()
+            centralsWantingNotifications[characteristic] = centrals
+        }
+        centrals.add(central.address)
+    }
+
+    private fun removeCentralWantingIndications(characteristic: BluetoothGattCharacteristic, central: BluetoothCentral) {
+        val centrals = centralsWantingIndications[characteristic]
+        centrals?.remove(central.address)
+    }
+
+    private fun removeCentralWantingNotifications(characteristic: BluetoothGattCharacteristic, central: BluetoothCentral) {
+        val centrals = centralsWantingNotifications[characteristic]
+        centrals?.remove(central.address)
+    }
+
+    private fun removeCentralFromWantingAnything(central: BluetoothCentral) {
+        val centralAddress = central.address
+        for ((_, value) in centralsWantingIndications) {
+            value.remove(centralAddress)
+        }
+        for ((_, value) in centralsWantingNotifications) {
+            value.remove(centralAddress)
+        }
+    }
+
+    fun getCentralsWantingIndications(characteristic: BluetoothGattCharacteristic): Set<BluetoothCentral> {
+        val centrals: Set<String>? = centralsWantingIndications[characteristic]
+        return centrals?.let { getCentralsByAddress(it) } ?: emptySet()
+    }
+
+    fun getCentralsWantingNotifications(characteristic: BluetoothGattCharacteristic): Set<BluetoothCentral> {
+        val centrals: Set<String>? = centralsWantingNotifications[characteristic]
+        return centrals?.let { getCentralsByAddress(it) } ?: emptySet()
+    }
+
+    private fun getCentralsByAddress(centralAddresses: Set<String>): Set<BluetoothCentral> {
+        val result = HashSet<BluetoothCentral>()
+        for (centralAddress in centralAddresses) {
+            getCentral(centralAddress)?.let { result.add(it) }
+        }
+        return result
     }
 
     companion object {

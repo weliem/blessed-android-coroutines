@@ -1,5 +1,5 @@
 /*
- *   Copyright (c) 2021 Martijn van Welie
+ *   Copyright (c) 2023 Martijn van Welie
  *
  *   Permission is hereby granted, free of charge, to any person obtaining a copy
  *   of this software and associated documentation files (the "Software"), to deal
@@ -22,17 +22,37 @@
  */
 package com.welie.blessed
 
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
 import java.util.*
 
 /**
  * This class represent a remote Central
  */
-class BluetoothCentral internal constructor(address: String, name: String?) {
-    val address: String
-    private val name: String?
+@SuppressLint("MissingPermission")
+@Suppress("unused")
+class BluetoothCentral internal constructor(val device: BluetoothDevice) {
     var currentMtu = 23
-    fun getName(): String {
-        return name ?: ""
+
+    val address: String
+        get() = device.address
+    val name: String
+        get() = if (device.name == null) "" else device.name
+    val bondState: BondState
+        get() = BondState.fromValue(device.bondState)
+
+    /**
+     * Create a bond
+     */
+    fun createBond(): Boolean {
+        return device.createBond()
+    }
+
+    /**
+     * Confirm pairing
+     */
+    fun setPairingConfirmation(confirm: Boolean): Boolean {
+        return device.setPairingConfirmation(confirm)
     }
 
     /**
@@ -41,7 +61,6 @@ class BluetoothCentral internal constructor(address: String, name: String?) {
      * This value is derived from the current negotiated MTU or the maximum characteristic length (512)
      */
     fun getMaximumWriteValueLength(writeType: WriteType): Int {
-        Objects.requireNonNull(writeType, "writetype is null")
         return when (writeType) {
             WriteType.WITH_RESPONSE -> 512
             WriteType.SIGNED -> currentMtu - 15
@@ -49,8 +68,14 @@ class BluetoothCentral internal constructor(address: String, name: String?) {
         }
     }
 
-    init {
-        this.address = Objects.requireNonNull(address, "address is null")
-        this.name = name
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || javaClass != other.javaClass) return false
+        val that = other as BluetoothCentral
+        return device.address == that.device.address
+    }
+
+    override fun hashCode(): Int {
+        return Objects.hash(device)
     }
 }
