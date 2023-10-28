@@ -168,33 +168,65 @@ class BluetoothPeripheral internal constructor(
             completedCommand()
         }
 
-        override fun onDescriptorRead(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+        override fun onDescriptorRead(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int,
+            value: ByteArray
+        ) {
             val gattStatus = GattStatus.fromValue(status)
             if (gattStatus != GattStatus.SUCCESS) {
                 Logger.e(TAG, "reading descriptor <%s> failed for device '%s, status '%s'", descriptor.uuid, address, gattStatus)
             }
 
-            val value = nonnullOf(descriptor.value)
             val resultCallback = currentResultCallback
             callbackScope.launch { resultCallback.onDescriptorRead(this@BluetoothPeripheral, value, descriptor, gattStatus) }
             completedCommand()
         }
 
-        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            val value = nonnullOf(characteristic.value)
+        @Deprecated("Deprecated in Java")
+        override fun onDescriptorRead(gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int) {
+            if (Build.VERSION.SDK_INT < 33) {
+                onDescriptorRead(gatt, descriptor, status, nonnullOf(descriptor.value))
+            }
+        }
+
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
+        ) {
             callbackScope.launch { observeMap[characteristic]?.invoke(value) }
         }
 
-        override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+        @Deprecated("Deprecated in Java")
+        override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
+            if (Build.VERSION.SDK_INT < 33) {
+                onCharacteristicChanged(gatt, characteristic, nonnullOf(characteristic.value))
+            }
+        }
+
+        override fun onCharacteristicRead(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray,
+            status: Int
+        ) {
             val gattStatus = GattStatus.fromValue(status)
             if (gattStatus != GattStatus.SUCCESS) {
                 Logger.e(TAG, "read failed for characteristic <%s>, status '%s'", characteristic.uuid, gattStatus)
             }
 
-            val value = nonnullOf(characteristic.value)
             val resultCallback = currentResultCallback
             callbackScope.launch { resultCallback.onCharacteristicRead(this@BluetoothPeripheral, value, characteristic, gattStatus) }
             completedCommand()
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (Build.VERSION.SDK_INT < 33) {
+                onCharacteristicRead(gatt, characteristic, nonnullOf(characteristic.value), status)
+            }
         }
 
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
@@ -922,9 +954,9 @@ class BluetoothPeripheral internal constructor(
                     // See https://stackoverflow.com/questions/48216517/rxandroidble-write-only-sends-the-first-20b
                     Logger.w(TAG, "value byte array is longer than allowed by MTU, write will fail if peripheral does not support long writes")
                 }
-                characteristic.value = bytesToWrite
-                if (bluetoothGatt?.writeCharacteristic(characteristic) == true) {
-                    Logger.d(TAG, "writing <%s> to characteristic <%s>", BluetoothBytesParser.bytes2String(bytesToWrite), characteristic.uuid)
+
+                if (internalWriteCharacteristic(characteristic, bytesToWrite, writeType)) {
+                    Logger.d(TAG, "writing <%s> to characteristic <%s>", bytesToWrite.asHexString(), characteristic.uuid)
                     nrTries++
                 } else {
                     Logger.e(TAG, "writeCharacteristic failed for characteristic: %s", characteristic.uuid)
@@ -940,6 +972,24 @@ class BluetoothPeripheral internal constructor(
 
     private fun willCauseLongWrite(value: ByteArray, writeType: WriteType): Boolean {
         return value.size > currentMtu - 3 && writeType == WriteType.WITH_RESPONSE
+    }
+
+    private fun internalWriteCharacteristic(
+        characteristic: BluetoothGattCharacteristic,
+        value: ByteArray,
+        writeType: WriteType
+    ): Boolean {
+        if (bluetoothGatt == null) return false
+
+        currentWriteBytes = value
+        return if (Build.VERSION.SDK_INT >= 33) {
+            val result = bluetoothGatt?.writeCharacteristic(characteristic, currentWriteBytes, writeType.writeType)
+            result == BluetoothStatusCodes.SUCCESS
+        } else {
+            characteristic.writeType = writeType.writeType
+            characteristic.value = value
+            bluetoothGatt!!.writeCharacteristic(characteristic)
+        }
     }
 
     suspend fun readDescriptor(descriptor: BluetoothGattDescriptor): ByteArray =
@@ -1033,10 +1083,8 @@ class BluetoothPeripheral internal constructor(
         return enqueue {
             if (isConnected) {
                 currentResultCallback = resultCallback
-                currentWriteBytes = bytesToWrite
-                descriptor.value = bytesToWrite
-                if (bluetoothGatt?.writeDescriptor(descriptor) == true) {
-                    Logger.d(TAG, "writing <%s> to descriptor <%s>", BluetoothBytesParser.bytes2String(bytesToWrite), descriptor.uuid)
+                if (internalWriteDescriptor(descriptor, bytesToWrite)) {
+                    Logger.d(TAG, "writing <%s> to descriptor <%s>", bytesToWrite.asHexString(), descriptor.uuid)
                     nrTries++
                 } else {
                     Logger.e(TAG, "writeDescriptor failed for descriptor: %s", descriptor.uuid)
@@ -1050,6 +1098,17 @@ class BluetoothPeripheral internal constructor(
         }
     }
 
+    private fun internalWriteDescriptor(descriptor: BluetoothGattDescriptor, value: ByteArray): Boolean {
+        if (bluetoothGatt == null) return false
+        currentWriteBytes = value
+        return if (Build.VERSION.SDK_INT >= 33) {
+            val result = bluetoothGatt?.writeDescriptor(descriptor, value)
+            result == BluetoothStatusCodes.SUCCESS
+        } else {
+            descriptor.value = value
+            bluetoothGatt!!.writeDescriptor(descriptor)
+        }
+    }
 
     suspend fun observe(characteristic: BluetoothGattCharacteristic, callback: (value: ByteArray) -> Unit): Boolean =
         suspendCoroutine {
@@ -1156,8 +1215,7 @@ class BluetoothPeripheral internal constructor(
                     completedCommand()
                 } else {
                     currentWriteBytes = finalValue
-                    descriptor.value = finalValue
-                    if (bluetoothGatt?.writeDescriptor(descriptor) == true) {
+                    if (internalWriteDescriptor(descriptor, finalValue)) {
                         nrTries++
                     } else {
                         Logger.e(TAG, "writeDescriptor failed for descriptor: %s", descriptor.uuid)
