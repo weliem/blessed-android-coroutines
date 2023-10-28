@@ -48,7 +48,7 @@ import kotlin.coroutines.suspendCoroutine
  * It takes care of operation queueing, some Android bugs, and provides several convenience functions.
  */
 @SuppressLint("MissingPermission")
-@Suppress("unused")
+@Suppress("unused", "deprecation")
 class BluetoothPeripheral internal constructor(
     private val context: Context,
     private var device: BluetoothDevice,
