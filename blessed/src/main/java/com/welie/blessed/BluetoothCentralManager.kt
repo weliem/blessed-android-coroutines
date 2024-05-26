@@ -474,6 +474,11 @@ class BluetoothCentralManager(private val context: Context) {
 
     private fun connectPeripheral(peripheral: BluetoothPeripheral, resultCentralManagerCallback: BluetoothCentralManagerCallback) {
         synchronized(connectLock) {
+            if (bleNotReady()) {
+                Logger.e(TAG, "cannot connect peripheral '%s' because Bluetooth is off", peripheral.address)
+                return
+            }
+
             checkPeripheralStatus(peripheral)
 
             // Check if the peripheral is cached or not. If not, issue a warning because connection may fail
@@ -496,6 +501,11 @@ class BluetoothCentralManager(private val context: Context) {
      */
     fun autoConnectPeripheral(peripheral: BluetoothPeripheral) {
         synchronized(connectLock) {
+            if (bleNotReady()) {
+                Logger.e(TAG, "cannot autoConnectPeripheral '%s' because Bluetooth is off", peripheral.address)
+                return
+            }
+
             checkPeripheralStatus(peripheral)
 
             // Check if the peripheral is uncached and start autoConnectPeripheralByScan
