@@ -60,7 +60,7 @@ class BluetoothCentralManager(private val context: Context) {
     private var autoConnectScanner: BluetoothLeScanner? = null
     private var currentCentralManagerCallback: BluetoothCentralManagerCallback = BluetoothCentralManagerCallback.NULL()
     private val connectedPeripherals: MutableMap<String, BluetoothPeripheral> = ConcurrentHashMap()
-    private val unconnectedPeripherals: MutableMap<String, BluetoothPeripheral?> = ConcurrentHashMap()
+    private val unconnectedPeripherals: MutableMap<String, BluetoothPeripheral> = ConcurrentHashMap()
     private val scannedPeripherals: MutableMap<String, BluetoothPeripheral> = ConcurrentHashMap()
     private val reconnectPeripheralAddresses: MutableList<String> = ArrayList()
     private var scanPeripheralNames = emptyArray<String>()
@@ -395,11 +395,12 @@ class BluetoothCentralManager(private val context: Context) {
 
     private fun stopAutoconnectScan() {
         cancelAutoConnectTimer()
-        if (autoConnectScanner != null) {
-            autoConnectScanner!!.stopScan(autoConnectScanCallback)
-            autoConnectScanner = null
-            Logger.i(TAG, "autoscan stopped")
+        try {
+            autoConnectScanner?.stopScan(autoConnectScanCallback)
+        } catch (ignore: Exception) {
         }
+        autoConnectScanner = null
+        Logger.i(TAG, "autoscan stopped")
     }
 
     private val isAutoScanning: Boolean
@@ -411,9 +412,18 @@ class BluetoothCentralManager(private val context: Context) {
     fun stopScan() {
         cancelTimeoutTimer()
         if (isScanning) {
-            if (bluetoothScanner != null) {
-                bluetoothScanner?.stopScan(currentCallback)
-                Logger.i(TAG, "scan stopped")
+            // Note that we can't call stopScan if the adapter is off
+            // On some phones like the Nokia 8, the adapter will be already off at this point
+            // So add a try/catch to handle any exceptions
+            try {
+                if (bluetoothScanner != null) {
+                    bluetoothScanner?.stopScan(currentCallback)
+                    currentCallback = null
+                    currentFilters = null
+                    Logger.i(TAG, "scan stopped")
+                }
+            } catch (ignore: Exception) {
+                Logger.e(TAG, "caught exception in stopScan")
             }
         } else {
             Logger.d(TAG, "no scan to stop because no scan is running")
@@ -730,10 +740,7 @@ class BluetoothCentralManager(private val context: Context) {
             Logger.d(TAG, "autoconnect scan timeout, restarting scan")
 
             // Stop previous autoconnect scans if any
-            if (autoConnectScanner != null) {
-                autoConnectScanner!!.stopScan(autoConnectScanCallback)
-                autoConnectScanner = null
-            }
+            stopAutoconnectScan()
 
             // Restart the auto connect scan and timer
             mainHandler.postDelayed({ scanForAutoConnectPeripherals() }, SCAN_RESTART_DELAY)
@@ -849,7 +856,7 @@ class BluetoothCentralManager(private val context: Context) {
 
         // Call cancelConnection for unconnected peripherals
         for (peripheral in unconnectedPeripherals.values) {
-            peripheral!!.disconnectWhenBluetoothOff()
+            peripheral.disconnectWhenBluetoothOff()
         }
         unconnectedPeripherals.clear()
 
@@ -884,23 +891,18 @@ class BluetoothCentralManager(private val context: Context) {
             BluetoothAdapter.STATE_TURNING_OFF -> {
                 // Try to disconnect all peripherals because Android doesn't always do that
                 connectedPeripherals.forEach { entry -> entry.value.cancelConnection()}
+                unconnectedPeripherals.forEach { entry -> entry.value.cancelConnection()}
+
+                // Clean up autoconnect by scanning information
+                reconnectPeripheralAddresses.clear()
 
                 // Stop all scans so that we are back in a clean state
                 if (isScanning) {
-                    // Note that we can't call stopScan if the adapter is off
-                    // On some phones like the Nokia 8, the adapter will be already off at this point
-                    // So add a try/catch to handle any exceptions
-                    try {
-                        stopScan()
-                    } catch (ignored: java.lang.Exception) {
-                    }
+                   stopScan()
                 }
 
                 if (isAutoScanning) {
-                    try {
-                        stopAutoconnectScan()
-                    } catch (ignored: java.lang.Exception) {
-                    }
+                    stopAutoconnectScan()
                 }
 
                 // Stop all scans so that we are back in a clean state
@@ -917,7 +919,9 @@ class BluetoothCentralManager(private val context: Context) {
                 // On some phones like Nokia 8, this scanner may still have an older active scan from us
                 // This happens when bluetooth is toggled. So make sure it is gone.
                 bluetoothScanner = bluetoothAdapter.bluetoothLeScanner
-                bluetoothScanner?.stopScan(defaultScanCallback)
+                try {
+                    bluetoothScanner?.stopScan(defaultScanCallback)
+                } catch (ignore: Exception) {}
 
                 Logger.d(TAG, "bluetooth turned on")
             }
