@@ -481,16 +481,18 @@ class BluetoothPeripheral internal constructor(
                 Logger.d(TAG, "connect to '%s' (%s) using TRANSPORT_LE", name, address)
                 registerBondingBroadcastReceivers()
                 discoveryStarted = false
+                connectTimestamp = SystemClock.elapsedRealtime()
+                startConnectionTimer(this@BluetoothPeripheral)
                 bluetoothGatt = try {
                     device.connectGatt(context, false, bluetoothGattCallback, BluetoothDevice.TRANSPORT_LE)
                 } catch (e: SecurityException) {
                     Logger.d(TAG, "exception")
+                    cancelConnectionTimer()
                     null
                 }
+                
                 bluetoothGatt?.let {
                     bluetoothGattCallback.onConnectionStateChange(it, HciStatus.SUCCESS.value, BluetoothProfile.STATE_CONNECTING)
-                    connectTimestamp = SystemClock.elapsedRealtime()
-                    startConnectionTimer(this@BluetoothPeripheral)
                 }
             }
         } else {
