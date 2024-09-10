@@ -22,7 +22,7 @@ data class BloodPressureMeasurement(
         fun fromBytes(value: ByteArray): BloodPressureMeasurement {
             val parser = BluetoothBytesParser(value, ByteOrder.LITTLE_ENDIAN)
             val flags = parser.getIntValue(FORMAT_UINT8)
-            val unit = if (flags and 0x01 > 0) ObservationUnit.MMHG else ObservationUnit.KPA
+            val unit = if (flags and 0x01 > 0) ObservationUnit.KPA else ObservationUnit.MMHG
             val timestampPresent = flags and 0x02 > 0
             val pulseRatePresent = flags and 0x04 > 0
             val userIdPresent = flags and 0x08 > 0
