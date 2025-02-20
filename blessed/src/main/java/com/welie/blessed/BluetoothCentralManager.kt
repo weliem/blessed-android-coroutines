@@ -233,6 +233,7 @@ class BluetoothCentralManager(private val context: Context) {
 
     private fun getScanSettings(scanMode: ScanMode): ScanSettings {
         return ScanSettings.Builder()
+            .setLegacy(false)
             .setScanMode(scanMode.value)
             .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
             .setMatchMode(ScanSettings.MATCH_MODE_AGGRESSIVE)

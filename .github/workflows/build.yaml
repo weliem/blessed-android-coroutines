@@ -1,0 +1,58 @@
+name: build
+
+concurrency:
+  group: build-${{ github.sha }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - 'main'
+
+jobs:
+  build:
+    name: build and deploy
+    runs-on: self-hosted
+    if: "!contains(github.event.pull_request.labels.*.name, 'do-not-build')"
+    steps:
+      - name: check out
+        uses: actions/checkout@main
+        with:
+          token: ${{secrets.PAT}}
+          submodules: recursive
+      - name: setup java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'microsoft'
+          java-version: 17
+      - name: setup android
+        uses: android-actions/setup-android@v2
+      - name: setup gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 8.0.1
+      - name: build
+        shell: bash
+        env:
+          MAVEN_USER: ${{ secrets.MAVEN_USER }}
+          MAVEN_TOKEN: ${{ secrets.MAVEN_TOKEN }}
+          VERSION: ${{ github.run_number }}
+        run: make build-library
+      - name: publish android
+        shell: bash
+        env:
+          MAVEN_USER: ${{ secrets.MAVEN_USER }}
+          MAVEN_TOKEN: ${{ secrets.MAVEN_TOKEN }}
+          VERSION: ${{ github.run_number }}
+        run: make publish-android mavenUser=$MAVEN_USER mavenToken=$MAVEN_TOKEN libraryVersion=$VERSION
+  tag:
+    name: tag
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - uses: actions/checkout@main
+      - run: make tag-version
+        env:
+          VERSION: ${{ github.run_number }}
