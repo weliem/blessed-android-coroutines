@@ -456,8 +456,12 @@ class BluetoothCentralManager(private val context: Context) {
      * @param peripheral BLE peripheral to connect with
      */
     suspend fun connectPeripheral(peripheral: BluetoothPeripheral): Unit =
-        suspendCoroutine {
+        suspendCancellableCoroutine {
             try {
+                // If the coroutine is cancelled, cancel the connection attempt
+                it.invokeOnCancellation { peripheral.cancelConnection() }
+
+                // Start the connection attempt
                 connectPeripheral(peripheral, object : BluetoothCentralManagerCallback() {
                     override fun onConnectedPeripheral(peripheral: BluetoothPeripheral) {
                         it.resume(Unit)
