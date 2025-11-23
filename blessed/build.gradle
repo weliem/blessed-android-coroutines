@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id 'com.android.library'
     id 'maven-publish'
@@ -21,19 +23,23 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
-
-    kotlinOptions {
-        jvmTarget = '1.8'
+    kotlin {
+        compilerOptions {
+            jvmTarget = JvmTarget.JVM_1_8
+        }
     }
-
     testOptions {
         unitTests {
             includeAndroidResources = true
+        }
+    }
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
         }
     }
 }
@@ -45,8 +51,8 @@ dependencies {
     implementation 'com.jakewharton.timber:timber:5.0.1'
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation "org.robolectric:robolectric:4.10.3"
-    testImplementation "org.mockito:mockito-core:3.8.0"
+    testImplementation "org.robolectric:robolectric:4.16"
+    testImplementation "org.mockito:mockito-core:5.20.0"
     testImplementation 'androidx.test:core:1.7.0'
     testImplementation "io.mockk:mockk:1.14.6"
 }
