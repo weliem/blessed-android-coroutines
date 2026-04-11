@@ -41,7 +41,6 @@ dependencies {
     implementation libs.androidx.constraintlayout
     implementation libs.timber
 
-    implementation libs.androidx.core.ktx
     implementation libs.kotlinx.coroutines.core
     implementation libs.kotlinx.coroutines.android
 
