@@ -304,7 +304,6 @@ class BluetoothPeripheral internal constructor(
         /**
          * This callback is only called from Android 8 (Oreo) or higher
          */
-        @Suppress("UNUSED_PARAMETER")
         fun onConnectionUpdated(gatt: BluetoothGatt, interval: Int, latency: Int, timeout: Int, status: Int) {
             val gattStatus = GattStatus.fromValue(status)
             if (gattStatus == GattStatus.SUCCESS) {
@@ -313,6 +312,7 @@ class BluetoothPeripheral internal constructor(
             } else {
                 Logger.e(TAG, "connection parameters update failed with status '%s'", gattStatus)
             }
+            callbackScope.launch { connectionParametersUpdatedCallback(interval, latency, timeout, gattStatus) }
         }
     }
 
@@ -702,6 +702,22 @@ class BluetoothPeripheral internal constructor(
 
     fun observeBondState(callback: (state: BondState) -> Unit) {
         this.bondStateCallback = callback
+    }
+
+    /**
+     * Callback invoked when connection parameters are updated by either the peripheral or the
+     * Android stack (e.g. after [requestConnectionPriority] or a unilateral renegotiation
+     * triggered by the OS). Only called on Android 8 (Oreo) or higher.
+     *
+     * @param interval connection interval in units of 1.25ms
+     * @param latency peripheral latency (number of connection events the peripheral may skip)
+     * @param timeout supervision timeout in units of 10ms
+     * @param status [GattStatus.SUCCESS] if the update succeeded
+     */
+    var connectionParametersUpdatedCallback: (interval: Int, latency: Int, timeout: Int, status: GattStatus) -> Unit = { _, _, _, _ -> }
+
+    fun observeConnectionParametersUpdates(callback: (interval: Int, latency: Int, timeout: Int, status: GattStatus) -> Unit) {
+        this.connectionParametersUpdatedCallback = callback
     }
 
     /**
