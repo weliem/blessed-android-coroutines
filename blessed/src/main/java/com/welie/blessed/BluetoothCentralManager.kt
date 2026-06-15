@@ -158,6 +158,7 @@ class BluetoothCentralManager(private val context: Context) {
     val internalCallback: InternalCallback = object : InternalCallback {
         override fun connecting(peripheral: BluetoothPeripheral) {
             scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.CONNECTING)}
+            scope.launch { connectionStateWithStatusCallback.invoke(peripheral, ConnectionState.CONNECTING, HciStatus.SUCCESS)}
         }
 
         override fun connected(peripheral: BluetoothPeripheral) {
@@ -170,6 +171,7 @@ class BluetoothCentralManager(private val context: Context) {
                 currentCentralManagerCallback = BluetoothCentralManagerCallback.NULL()
             }
             scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.CONNECTED)}
+            scope.launch { connectionStateWithStatusCallback.invoke(peripheral, ConnectionState.CONNECTED, HciStatus.SUCCESS)}
         }
 
         override fun connectFailed(peripheral: BluetoothPeripheral, status: HciStatus) {
@@ -196,11 +198,13 @@ class BluetoothCentralManager(private val context: Context) {
                     currentCentralManagerCallback = BluetoothCentralManagerCallback.NULL()
                 }
                 scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED)}
+                scope.launch { connectionStateWithStatusCallback.invoke(peripheral, ConnectionState.DISCONNECTED, status)}
             }
         }
 
         override fun disconnecting(peripheral: BluetoothPeripheral) {
             scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTING)}
+            scope.launch { connectionStateWithStatusCallback.invoke(peripheral, ConnectionState.DISCONNECTING, HciStatus.SUCCESS)}
         }
 
         override fun disconnected(peripheral: BluetoothPeripheral, status: HciStatus) {
@@ -213,6 +217,7 @@ class BluetoothCentralManager(private val context: Context) {
                 currentCentralManagerCallback = BluetoothCentralManagerCallback.NULL()
             }
             scope.launch { connectionStateCallback.invoke(peripheral, ConnectionState.DISCONNECTED) }
+            scope.launch { connectionStateWithStatusCallback.invoke(peripheral, ConnectionState.DISCONNECTED, status) }
         }
 
         override fun getPincode(peripheral: BluetoothPeripheral): String? {
@@ -444,8 +449,32 @@ class BluetoothCentralManager(private val context: Context) {
 
     private var connectionStateCallback : (peripheral : BluetoothPeripheral, state : ConnectionState) -> Unit = {_,_ -> }
 
+    private var connectionStateWithStatusCallback : (peripheral : BluetoothPeripheral, state : ConnectionState, status : HciStatus) -> Unit = {_,_,_ -> }
+
     fun observeConnectionState(connectionCallback: (peripheral : BluetoothPeripheral, state : ConnectionState) -> Unit) {
         connectionStateCallback = connectionCallback
+    }
+
+    /**
+     * Observe connection state changes together with the [HciStatus] of the transition.
+     *
+     * This is a status-aware overload of [observeConnectionState]. The underlying callback API
+     * (`onDisconnectedPeripheral` and `onConnectionFailed`) exposes an [HciStatus], but the plain
+     * [observeConnectionState] overload drops it, so there is no way to know *why* a peripheral
+     * disconnected (e.g. supervision timeout, terminated by remote, ...). This overload forwards it.
+     *
+     * The [status] semantics depend on the transition:
+     *  - [ConnectionState.CONNECTING], [ConnectionState.CONNECTED], [ConnectionState.DISCONNECTING]
+     *    are always reported with [HciStatus.SUCCESS].
+     *  - [ConnectionState.DISCONNECTED] carries the status of `onDisconnectedPeripheral` for a
+     *    normal disconnection, or the status of `onConnectionFailed` when an initial connection
+     *    attempt failed.
+     *
+     * @param connectionCallback invoked with the peripheral, its new [ConnectionState] and the
+     * [HciStatus] of the transition
+     */
+    fun observeConnectionState(connectionCallback: (peripheral : BluetoothPeripheral, state : ConnectionState, status : HciStatus) -> Unit) {
+        connectionStateWithStatusCallback = connectionCallback
     }
 
 
